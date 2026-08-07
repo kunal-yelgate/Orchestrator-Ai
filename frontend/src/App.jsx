@@ -5,8 +5,15 @@ import Dashboard from "./pages/Dashboard";
 import "./App.css";
 
 function App() {
-  const [view, setView] = useState("landing");
   const [backendStatus, setBackendStatus] = useState("Checking...");
+  const [currentUser, setCurrentUser] = useState(() => {
+    const stored = localStorage.getItem("orchestratorCurrentUser");
+    return stored ? JSON.parse(stored) : null;
+  });
+  const [view, setView] = useState(() => {
+    const stored = localStorage.getItem("orchestratorCurrentUser");
+    return stored ? "dashboard" : "landing";
+  });
 
   useEffect(() => {
     const loadStatus = async () => {
@@ -23,15 +30,34 @@ function App() {
     loadStatus();
   }, []);
 
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem(
+        "orchestratorCurrentUser",
+        JSON.stringify(currentUser),
+      );
+    } else {
+      localStorage.removeItem("orchestratorCurrentUser");
+    }
+  }, [currentUser]);
+
+  const handleAuthenticate = (user) => {
+    setCurrentUser(user);
+    setView("dashboard");
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setView("landing");
+  };
+
   return view === "landing" ? (
-    <Home
-      onEnterDashboard={() => setView("dashboard")}
-      backendStatus={backendStatus}
-    />
+    <Home onAuthenticate={handleAuthenticate} backendStatus={backendStatus} />
   ) : (
     <Dashboard
       backendStatus={backendStatus}
-      onBack={() => setView("landing")}
+      currentUser={currentUser}
+      onBack={handleLogout}
     />
   );
 }

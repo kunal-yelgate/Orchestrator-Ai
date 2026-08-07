@@ -295,6 +295,15 @@
   gap: 10px;
 }
 
+.user-badge {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #f7f7f2;
+  border: 1px solid #e2e2d8;
+  color: #111111;
+  font-weight: 600;
+}
+
 .model-select {
   border-radius: 8px;
   padding: 8px 10px;

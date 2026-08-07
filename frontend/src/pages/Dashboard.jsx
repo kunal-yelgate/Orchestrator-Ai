@@ -56,7 +56,7 @@ const promptSuggestions = [
   "Summarize this workflow clearly",
 ];
 
-const Dashboard = ({ backendStatus, onBack }) => {
+const Dashboard = ({ backendStatus, currentUser, onBack }) => {
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -168,8 +168,15 @@ const Dashboard = ({ backendStatus, onBack }) => {
             </p>
           </div>
           <div className="topbar-actions">
+            <div className="user-badge">
+              <span>
+                {currentUser?.name
+                  ? `Signed in as ${currentUser.name}`
+                  : currentUser?.email}
+              </span>
+            </div>
             <button className="secondary-btn compact" onClick={onBack}>
-              Back
+              Logout
             </button>
             <select
               className="model-select"
