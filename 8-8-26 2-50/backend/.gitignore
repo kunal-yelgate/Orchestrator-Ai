@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+
+# Environment
+.env
+.env.*
+
+# Logs
+logs/
+
+# Checkpoints
+checkpoints/
+
+# Virtual environment
+venv/
+.venv/
