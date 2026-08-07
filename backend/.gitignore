@@ -1,10 +1,17 @@
-# Environment variables
-.env
-
 # Python
 __pycache__/
 *.pyc
 
-# Virtual Environment
+# Environment
+.env
+.env.*
+
+# Logs
+logs/
+
+# Checkpoints
+checkpoints/
+
+# Virtual environment
 venv/
 .venv/
