@@ -1,69 +1,210 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabase";
 
-// ─── Sub-screens ────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────
+
+/** Detect email provider from email address for "Open inbox" shortcut */
+function getInboxUrl(email) {
+  const domain = (email || "").split("@")[1]?.toLowerCase() || "";
+  if (domain.includes("gmail")) return "https://mail.google.com";
+  if (domain.includes("outlook") || domain.includes("hotmail") || domain.includes("live"))
+    return "https://outlook.live.com";
+  if (domain.includes("yahoo")) return "https://mail.yahoo.com";
+  if (domain.includes("proton")) return "https://mail.proton.me";
+  if (domain.includes("icloud") || domain.includes("apple")) return "https://www.icloud.com/mail";
+  return null;
+}
+
+/** Map raw Supabase error messages to user-friendly strings */
+function friendlyAuthError(message = "") {
+  if (message.includes("Email not confirmed"))
+    return "Your email isn't verified yet. Check your inbox (and spam) for the verification link.";
+  if (message.includes("Invalid login credentials") || message.includes("invalid_credentials"))
+    return "Incorrect email or password. Double-check and try again.";
+  if (message.includes("User already registered"))
+    return "An account with this email already exists. Try signing in instead.";
+  if (message.includes("rate limit") || message.includes("429") || message.includes("over_email_send_rate_limit"))
+    return "Email rate limit hit (Supabase allows ~2 emails/hour on free tier). Wait a moment and try again, or check your spam folder — the email may have already been sent.";
+  if (message.includes("Password should be"))
+    return message; // pass Supabase's own password policy message through
+  if (message.includes("Unable to validate email"))
+    return "Please enter a valid email address.";
+  return message;
+}
+
+// ── Verify Email Screen ───────────────────────────────────────────────
 /**
- * Shown after a successful signUp() call.
- * Supabase has sent a verification email — user must click the link
- * before they can log in.
+ * Shown right after a successful signUp().
+ * Features:
+ *  - Countdown timer before allowing resend (60 s)
+ *  - "Open inbox" shortcut based on email domain
+ *  - "I've verified — continue" button that polls Supabase for an active session
+ *  - Rate-limit warning
  */
-const VerifyEmailScreen = ({ email, onBack }) => (
-  <div className="auth-card verify-card" role="main">
-    <div className="verify-icon" aria-hidden="true">✉️</div>
-    <div className="landing-badge">Check your inbox</div>
-    <h2 className="auth-title">
-      Verify your <span className="gradient-text">email</span>
-    </h2>
-    <p className="verify-desc">
-      We sent a verification link to{" "}
-      <strong className="verify-email">{email}</strong>.
-      <br />
-      Click the link in that email to activate your account, then come
-      back here to sign in.
-    </p>
+const VerifyEmailScreen = ({ email, onVerified, onBack }) => {
+  const [resendCooldown, setResendCooldown] = useState(60);
+  const [resendStatus, setResendStatus] = useState("idle"); // idle | sending | sent | error
+  const [checkingSession, setCheckingSession] = useState(false);
+  const [checkError, setCheckError] = useState("");
 
-    <div className="verify-steps">
-      <div className="verify-step done">
-        <span className="vstep-icon">✓</span>
-        <span>Account created</span>
-      </div>
-      <div className="verify-step active">
-        <span className="vstep-icon">→</span>
-        <span>Open verification email</span>
-      </div>
-      <div className="verify-step">
-        <span className="vstep-icon">3</span>
-        <span>Sign in to workspace</span>
-      </div>
-    </div>
+  const inboxUrl = getInboxUrl(email);
 
-    <button
-      id="back-to-login-btn"
-      className="primary-btn auth-submit"
-      type="button"
-      onClick={onBack}
-    >
-      Go to Sign In →
-    </button>
+  // Count-down timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const id = setInterval(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearInterval(id);
+  }, [resendCooldown]);
 
-    <p className="verify-note">
-      Didn't receive it? Check your spam folder, or{" "}
+  // Resend verification email
+  const handleResend = async () => {
+    setResendStatus("sending");
+    const { error } = await supabase.auth.resend({ type: "signup", email });
+    if (error) {
+      setResendStatus("error");
+      console.error("[resend]", error.message);
+    } else {
+      setResendStatus("sent");
+      setResendCooldown(60); // restart cooldown
+    }
+  };
+
+  // "I've verified" — try to get the current session
+  const handleCheckVerified = useCallback(async () => {
+    setCheckingSession(true);
+    setCheckError("");
+    // Refresh the session from the server — will succeed if user clicked the link
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) {
+      setCheckError("Couldn't check verification status. Please try again.");
+      setCheckingSession(false);
+      return;
+    }
+    if (session?.user) {
+      onVerified(session.user);
+      return;
+    }
+    // No session yet — user hasn't clicked the link
+    setCheckError("Your email isn't verified yet. Click the link in the email first.");
+    setCheckingSession(false);
+  }, [onVerified]);
+
+  return (
+    <div className="auth-card verify-card" role="main" aria-label="Email verification required">
+      <div className="verify-icon" aria-hidden="true">✉️</div>
+
+      <div className="landing-badge">Check your inbox</div>
+
+      <h2 className="auth-title">
+        Verify your <span className="gradient-text">email</span>
+      </h2>
+
+      <p className="verify-desc">
+        We sent a verification link to{" "}
+        <strong className="verify-email">{email}</strong>.
+        <br />
+        Click that link to activate your account, then come back here.
+      </p>
+
+      {/* Inbox shortcut */}
+      {inboxUrl && (
+        <a
+          href={inboxUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="primary-btn auth-submit open-inbox-btn"
+          id="open-inbox-btn"
+          aria-label={`Open inbox for ${email}`}
+        >
+          Open inbox ↗
+        </a>
+      )}
+
+      {/* Step tracker */}
+      <div className="verify-steps" role="list">
+        <div className="verify-step done" role="listitem">
+          <span className="vstep-icon">✓</span>
+          <span>Account created</span>
+        </div>
+        <div className="verify-step active" role="listitem">
+          <span className="vstep-icon">→</span>
+          <span>Click the verification link in your email</span>
+        </div>
+        <div className="verify-step" role="listitem">
+          <span className="vstep-icon">3</span>
+          <span>Sign in to your workspace</span>
+        </div>
+      </div>
+
+      {/* "I've verified" button */}
       <button
-        className="link-btn"
+        id="check-verified-btn"
+        className="primary-btn auth-submit"
         type="button"
-        onClick={async () => {
-          await supabase.auth.resend({ type: "signup", email });
-          alert("Verification email resent!");
-        }}
+        onClick={handleCheckVerified}
+        disabled={checkingSession}
+        aria-busy={checkingSession}
       >
-        resend the email
+        {checkingSession ? (
+          <span className="btn-loading" aria-label="Checking…">
+            <span className="btn-dot" /><span className="btn-dot" /><span className="btn-dot" />
+          </span>
+        ) : (
+          "I've verified my email — continue →"
+        )}
       </button>
-      .
-    </p>
-  </div>
-);
 
-// ─── Main component ─────────────────────────────────────────────────
+      {checkError && (
+        <div className="global-error" role="alert" aria-live="assertive">
+          <span aria-hidden="true">⚠</span> {checkError}
+        </div>
+      )}
+
+      {/* Resend section */}
+      <div className="verify-resend-row">
+        <p className="verify-note">
+          Didn't receive it?{" "}
+          <strong>Check your spam/junk folder first.</strong>
+        </p>
+
+        <button
+          id="resend-email-btn"
+          className="link-btn"
+          type="button"
+          onClick={handleResend}
+          disabled={resendCooldown > 0 || resendStatus === "sending"}
+          aria-label={resendCooldown > 0 ? `Resend available in ${resendCooldown}s` : "Resend verification email"}
+        >
+          {resendStatus === "sending" && "Sending…"}
+          {resendStatus === "sent" && "✓ Email resent!"}
+          {resendStatus === "error" && "Resend failed — try again"}
+          {(resendStatus === "idle" || (resendStatus !== "sending" && resendStatus !== "sent" && resendStatus !== "error")) && (
+            resendCooldown > 0
+              ? `Resend in ${resendCooldown}s`
+              : "Resend verification email"
+          )}
+        </button>
+
+        {resendCooldown === 0 && resendStatus === "idle" && (
+          <p className="verify-note rate-note">
+            ⚠️ Supabase free tier allows ~2 emails/hour. If resend fails, wait before retrying.
+          </p>
+        )}
+      </div>
+
+      <button
+        id="back-to-login-btn"
+        className="link-btn back-link"
+        type="button"
+        onClick={onBack}
+      >
+        ← Back to Sign In
+      </button>
+    </div>
+  );
+};
+
+// ── Main component ────────────────────────────────────────────────────
 const Home = ({ onAuthenticate, backendStatus }) => {
   const [mode, setMode] = useState("login");
   const [name, setName] = useState("");
@@ -73,15 +214,12 @@ const Home = ({ onAuthenticate, backendStatus }) => {
   const [errors, setErrors] = useState({});
   const [globalError, setGlobalError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [signupEmail, setSignupEmail] = useState(""); // email used for verification screen
+  const [signupEmail, setSignupEmail] = useState(""); // triggers verification screen
 
-  // ── Client-side field validation ─────────────────────────────────
+  // ── Client-side validation ───────────────────────────────────────
   const validate = () => {
     const e = {};
-
-    if (mode === "signup" && !name.trim()) {
-      e.name = "Full name is required.";
-    }
+    if (mode === "signup" && !name.trim()) e.name = "Full name is required.";
 
     if (!email.trim()) {
       e.email = "Email is required.";
@@ -93,13 +231,13 @@ const Home = ({ onAuthenticate, backendStatus }) => {
       e.password = "Password is required.";
     } else if (password.length < 8) {
       e.password = "Password must be at least 8 characters.";
-    } else if (!/[A-Z]/.test(password)) {
+    } else if (mode === "signup" && !/[A-Z]/.test(password)) {
       e.password = "Include at least one uppercase letter.";
-    } else if (!/[0-9]/.test(password)) {
+    } else if (mode === "signup" && !/[0-9]/.test(password)) {
       e.password = "Include at least one number.";
     }
 
-    if (mode === "signup" && password !== confirmPassword) {
+    if (mode === "signup" && password && password !== confirmPassword) {
       e.confirmPassword = "Passwords do not match.";
     }
 
@@ -125,61 +263,57 @@ const Home = ({ onAuthenticate, backendStatus }) => {
     }
   };
 
-  // ── Sign Up via Supabase ─────────────────────────────────────────
+  // ── Sign Up ───────────────────────────────────────────────────────
   const handleSignUp = async () => {
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
       options: {
-        data: { full_name: name.trim() },           // saved in user_metadata
-        emailRedirectTo: window.location.origin,     // redirect back here after verification
+        data: { full_name: name.trim() },
+        // Must be whitelisted in Supabase Dashboard → Auth → URL Configuration → Redirect URLs
+        emailRedirectTo: `${window.location.origin}/`,
       },
     });
 
+    console.log("[signUp] response:", { data, error });
+
     if (error) {
-      setGlobalError(error.message);
+      setGlobalError(friendlyAuthError(error.message));
       return;
     }
 
-    if (data.user && !data.session) {
-      // Supabase returns a user but no session → email NOT yet confirmed
-      // → show the "check your inbox" screen
+    // data.user === null means email already existed (Supabase hides this for security)
+    if (!data.user) {
+      setGlobalError(
+        "This email may already be registered. Try signing in, or use a different email."
+      );
+      return;
+    }
+
+    // data.session === null → email confirmation required → show verification screen
+    if (!data.session) {
       setSignupEmail(email.trim());
       return;
     }
 
-    // Edge case: email confirmation disabled in Supabase project settings
-    if (data.session) {
-      onAuthenticate(data.user);
-    }
+    // data.session exists → "Confirm email" is disabled in Supabase project → log straight in
+    onAuthenticate(data.user);
   };
 
-  // ── Login via Supabase ───────────────────────────────────────────
+  // ── Login ─────────────────────────────────────────────────────────
   const handleLogin = async () => {
     const { data, error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     });
 
+    console.log("[signIn] response:", { data, error });
+
     if (error) {
-      // Friendly error messages for common Supabase errors
-      if (error.message.includes("Email not confirmed")) {
-        setGlobalError(
-          "Your email is not verified yet. Please check your inbox and click the verification link."
-        );
-      } else if (
-        error.message.includes("Invalid login credentials") ||
-        error.message.includes("invalid_credentials")
-      ) {
-        setGlobalError("Incorrect email or password. Please try again.");
-      } else {
-        setGlobalError(error.message);
-      }
+      setGlobalError(friendlyAuthError(error.message));
       return;
     }
 
-    // Session is now active — App.jsx's onAuthStateChange will pick this up
-    // and set currentUser, but we also call onAuthenticate for immediate UI update
     onAuthenticate(data.user);
   };
 
@@ -189,7 +323,7 @@ const Home = ({ onAuthenticate, backendStatus }) => {
     setGlobalError("");
   };
 
-  // ── Password strength indicator ──────────────────────────────────
+  // ── Password strength ─────────────────────────────────────────────
   const getPasswordStrength = (pw) => {
     if (!pw) return { score: 0, label: "", color: "" };
     let score = 0;
@@ -210,7 +344,7 @@ const Home = ({ onAuthenticate, backendStatus }) => {
     { icon: "✦", label: "Quality verification", desc: "Automated cross-model consistency checks" },
   ];
 
-  // ── If signup was successful → show verification screen ──────────
+  // ── Verification screen ───────────────────────────────────────────
   if (signupEmail) {
     return (
       <div className="landing-shell">
@@ -220,7 +354,14 @@ const Home = ({ onAuthenticate, backendStatus }) => {
         <div className="landing-layout verify-layout">
           <VerifyEmailScreen
             email={signupEmail}
-            onBack={() => { setSignupEmail(""); setMode("login"); }}
+            onVerified={(user) => {
+              setSignupEmail("");
+              onAuthenticate(user);
+            }}
+            onBack={() => {
+              setSignupEmail("");
+              setMode("login");
+            }}
           />
         </div>
       </div>
@@ -286,7 +427,7 @@ const Home = ({ onAuthenticate, backendStatus }) => {
               <p>
                 {mode === "login"
                   ? "Enter your credentials to access the orchestration dashboard."
-                  : "Set up your account. A verification email will be sent."}
+                  : "A verification email will be sent to activate your account."}
               </p>
             </div>
 
@@ -314,7 +455,6 @@ const Home = ({ onAuthenticate, backendStatus }) => {
             </div>
           </div>
 
-          {/* Global API error */}
           {globalError && (
             <div className="global-error" role="alert" aria-live="assertive">
               <span aria-hidden="true">⚠</span> {globalError}
@@ -322,7 +462,6 @@ const Home = ({ onAuthenticate, backendStatus }) => {
           )}
 
           <form className="auth-form" onSubmit={handleSubmit} noValidate aria-label="Authentication form">
-            {/* Name — signup only */}
             {mode === "signup" && (
               <label className="field-group" htmlFor="auth-name">
                 <span>Full name</span>
@@ -335,13 +474,10 @@ const Home = ({ onAuthenticate, backendStatus }) => {
                   autoComplete="name"
                   aria-invalid={!!errors.name}
                 />
-                {errors.name && (
-                  <span className="field-error" role="alert">{errors.name}</span>
-                )}
+                {errors.name && <span className="field-error" role="alert">{errors.name}</span>}
               </label>
             )}
 
-            {/* Email */}
             <label className="field-group" htmlFor="auth-email">
               <span>Email address</span>
               <input
@@ -353,12 +489,9 @@ const Home = ({ onAuthenticate, backendStatus }) => {
                 autoComplete="email"
                 aria-invalid={!!errors.email}
               />
-              {errors.email && (
-                <span className="field-error" role="alert">{errors.email}</span>
-              )}
+              {errors.email && <span className="field-error" role="alert">{errors.email}</span>}
             </label>
 
-            {/* Password */}
             <label className="field-group" htmlFor="auth-password">
               <span>Password</span>
               <input
@@ -370,11 +503,8 @@ const Home = ({ onAuthenticate, backendStatus }) => {
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
                 aria-invalid={!!errors.password}
               />
-              {errors.password && (
-                <span className="field-error" role="alert">{errors.password}</span>
-              )}
+              {errors.password && <span className="field-error" role="alert">{errors.password}</span>}
 
-              {/* Password strength meter — signup only */}
               {mode === "signup" && password && (
                 <div className="strength-meter" aria-label={`Password strength: ${strength.label}`}>
                   <div className="strength-bar">
@@ -394,7 +524,6 @@ const Home = ({ onAuthenticate, backendStatus }) => {
               )}
             </label>
 
-            {/* Confirm password — signup only */}
             {mode === "signup" && (
               <label className="field-group" htmlFor="auth-confirm-password">
                 <span>Confirm password</span>
@@ -418,12 +547,11 @@ const Home = ({ onAuthenticate, backendStatus }) => {
               className="primary-btn auth-submit"
               type="submit"
               disabled={isLoading}
+              aria-busy={isLoading}
             >
               {isLoading ? (
                 <span className="btn-loading" aria-label="Loading">
-                  <span className="btn-dot" />
-                  <span className="btn-dot" />
-                  <span className="btn-dot" />
+                  <span className="btn-dot" /><span className="btn-dot" /><span className="btn-dot" />
                 </span>
               ) : (
                 mode === "login" ? "Access Workspace →" : "Create Account & Verify →"
