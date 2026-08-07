@@ -1,42 +1,95 @@
-from typing import TypedDict, List, Dict, Any
+from langgraph.graph import StateGraph, START, END
+
+from graph.state import WorkflowState
+
+from agents.planner import planner_node
+from agents.task_splitter import task_splitter_node
+from agents.researcher import (
+    researcher_node_1,
+    researcher_node_2,
+)
+from agents.summarizer import summarizer_node
+from agents.verifier import verifier_node
 
 
-class WorkflowState(TypedDict):
+def build_workflow():
     """
-    Shared state passed between all LangGraph nodes.
-    Every node reads from this state and updates it.
+    Builds the complete Agentic AI Workflow.
     """
 
-    # Workflow Info
-    workflow_id: str
-    goal: str
-    status: str
+    workflow = StateGraph(WorkflowState)
 
-    # Planner
-    plan: str
+    # ==================================================
+    # Register Nodes
+    # ==================================================
 
-    # Task Splitter
-    tasks: List[Dict[str, Any]]
+    workflow.add_node(
+        "Planner",
+        planner_node,
+    )
 
-    # Parallel Research Results
-    research_agent_1: Dict[str, Any]
-    research_agent_2: Dict[str, Any]
+    workflow.add_node(
+        "TaskSplitter",
+        task_splitter_node,
+    )
 
-    # Combined Results
-    research_results: List[Dict[str, Any]]
+    workflow.add_node(
+        "ResearchAgent1",
+        researcher_node_1,
+    )
 
-    # Summarizer
-    summary: Dict[str, Any]
+    workflow.add_node(
+        "ResearchAgent2",
+        researcher_node_2,
+    )
 
-    # Verifier
-    verification: Dict[str, Any]
+    workflow.add_node(
+        "Summarizer",
+        summarizer_node,
+    )
 
-    # Final Output
-    final_output: Dict[str, Any]
+    workflow.add_node(
+        "Verifier",
+        verifier_node,
+    )
 
-    # Execution Tracking
-    current_agent: str
-    execution_trace: List[str]
+    # ==================================================
+    # Workflow
+    # ==================================================
 
-    # Error Handling
-    error: str
+    workflow.add_edge(
+        START,
+        "Planner",
+    )
+
+    workflow.add_edge(
+        "Planner",
+        "TaskSplitter",
+    )
+
+    workflow.add_edge(
+        "TaskSplitter",
+        "ResearchAgent1",
+    )
+
+    workflow.add_edge(
+        "ResearchAgent1",
+        "ResearchAgent2",
+    )
+
+    workflow.add_edge(
+        "ResearchAgent2",
+        "Summarizer",
+    )
+
+    workflow.add_edge(
+        "Summarizer",
+        "Verifier",
+    )
+
+    workflow.add_edge(
+        "Verifier",
+        END,
+    )
+
+    return workflow.compile()

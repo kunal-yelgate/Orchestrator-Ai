@@ -1,46 +1,77 @@
-from langgraph.graph import StateGraph, START, END
-
-from graph.state import WorkflowState
-
-from agents.planner import planner_node
-from agents.task_splitter import task_splitter_node
-from agents.researcher import (
-    researcher_node_1,
-    researcher_node_2,
-)
-from agents.summarizer import summarizer_node
-from agents.verifier import verifier_node
+from typing import TypedDict, List, Dict, Any
 
 
-def build_workflow():
+class WorkflowState(TypedDict):
+    """
+    Shared state passed between all LangGraph nodes.
+    """
 
-    workflow = StateGraph(WorkflowState)
+    # ===================================================
+    # Workflow Information
+    # ===================================================
 
-    # Register Nodes
-    workflow.add_node("Planner", planner_node)
-    workflow.add_node("TaskSplitter", task_splitter_node)
+    workflow_id: str
 
-    workflow.add_node("ResearchAgent1", researcher_node_1)
-    workflow.add_node("ResearchAgent2", researcher_node_2)
+    goal: str
 
-    workflow.add_node("Summarizer", summarizer_node)
-    workflow.add_node("Verifier", verifier_node)
+    status: str
 
-    # Flow
-    workflow.add_edge(START, "Planner")
+    error: str
 
-    workflow.add_edge("Planner", "TaskSplitter")
+    # ===================================================
+    # LLM Configuration
+    # ===================================================
 
-    # NOTE:
-    # For the MVP, execute research nodes one after another.
-    # Later you can replace this with true parallel execution.
+    provider: str
 
-    workflow.add_edge("TaskSplitter", "ResearchAgent1")
-    workflow.add_edge("ResearchAgent1", "ResearchAgent2")
-    workflow.add_edge("ResearchAgent2", "Summarizer")
+    model: str
 
-    workflow.add_edge("Summarizer", "Verifier")
+    api_key: str
 
-    workflow.add_edge("Verifier", END)
+    hf_provider: str
 
-    return workflow.compile()
+    llm: Any
+
+    # ===================================================
+    # Planner
+    # ===================================================
+
+    plan: Dict[str, Any]
+
+    # ===================================================
+    # Task Splitter
+    # ===================================================
+
+    tasks: List[Dict[str, Any]]
+
+    # ===================================================
+    # Research Agents
+    # ===================================================
+
+    research_agent_1: Dict[str, Any]
+
+    research_agent_2: Dict[str, Any]
+
+    research_results: List[Dict[str, Any]]
+
+    # ===================================================
+    # Summarizer
+    # ===================================================
+
+    summary: Dict[str, Any]
+
+    # ===================================================
+    # Verifier
+    # ===================================================
+
+    verification: Dict[str, Any]
+
+    final_output: Dict[str, Any]
+
+    # ===================================================
+    # Execution Tracking
+    # ===================================================
+
+    current_agent: str
+
+    execution_trace: List[str]

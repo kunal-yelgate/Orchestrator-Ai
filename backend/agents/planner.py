@@ -514,3 +514,55 @@ if __name__ == "__main__":
 
     except Exception as e:
         print("\nError:", e)
+
+    # =======================================================
+# LangGraph Node Wrapper
+# =======================================================
+
+from graph.state import WorkflowState
+
+
+from graph.state import WorkflowState
+
+
+def planner_node(state: WorkflowState):
+    """
+    LangGraph Planner Node
+    """
+
+    print("\n========== Planner ==========\n")
+
+    state["current_agent"] = "Planner"
+
+    if "execution_trace" not in state:
+        state["execution_trace"] = []
+
+    state["execution_trace"].append("Planner")
+
+    try:
+
+        workflow = run_planner(
+            goal=state["goal"],
+            provider=state["provider"],
+            model=state["model"],
+            api_key=state["api_key"],
+            hf_provider=state.get("hf_provider")
+        )
+
+        validate_workflow(workflow)
+
+        state["plan"] = workflow
+
+        state["status"] = "Planner Completed"
+
+        print("Planner Finished Successfully")
+
+    except Exception as e:
+
+        state["status"] = "Planner Failed"
+
+        state["error"] = str(e)
+
+        print(e)
+
+    return state

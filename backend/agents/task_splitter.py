@@ -1,40 +1,4 @@
-"""from pydantic import BaseModel, Field
-from typing import List
 import json
-
-
-class Task(BaseModel):
-    task_id: str = Field(..., description="Unique Task ID")
-
-    title: str = Field(..., description="Task title")
-
-    agent: str = Field(..., description="Assigned Agent")
-
-    dependencies: List[str] = Field(
-        default_factory=list,
-        description="Dependent Task IDs"
-    )
-
-    status: str = Field(
-        default="pending",
-        description="Task Status"
-    )
-
-
-class TaskSplitterResponse(BaseModel):
-    success: bool
-
-    parallel: bool
-
-    tasks: List[Task] """
-'''import os
-import sys
-
-# Add backend folder to Python path
-sys.path.append(
-    os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-)
-
 
 from models.task_model import TaskSplitterResponse
 from prompts.splitter_prompt import (
@@ -44,129 +8,144 @@ from prompts.splitter_prompt import (
 
 
 class TaskSplitter:
+    """
+    Task Splitter Agent
+    """
 
     def __init__(self, llm_provider):
-        """
-        llm_provider is an abstraction over Gemini/Ollama/OpenAI.
-
-        Example:
-            GeminiProvider()
-            OllamaProvider()
-        """
         self.llm = llm_provider
 
+    def build_prompt(self, goal: str):
+
+        system_prompt = TASK_SPLITTER_SYSTEM_PROMPT
+
+        user_prompt = build_task_splitter_prompt(goal)
+
+        return system_prompt, user_prompt
+
+    def call_llm(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+    ):
+
+        response = self.llm.generate(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=0.2,
+        )
+
+        return response
+
+    def parse_response(self, response: str):
+
+        try:
+
+            return json.loads(response)
+
+        except json.JSONDecodeError:
+
+            raise ValueError(
+                "Task Splitter returned invalid JSON."
+            )
+
+    def validate(self, data):
+
+        return TaskSplitterResponse(**data)
 
 
-def build_prompt(self, goal: str):
+# ===========================================================
+# LangGraph Node
+# ===========================================================
 
-    system_prompt = TASK_SPLITTER_SYSTEM_PROMPT
+def task_splitter_node(state):
 
-    user_prompt = build_task_splitter_prompt(goal)
+    print("\n========== Task Splitter ==========\n")
 
-    return system_prompt, user_prompt
+    state["current_agent"] = "Task Splitter"
 
+    if "execution_trace" not in state:
+        state["execution_trace"] = []
 
-def call_llm(self, system_prompt: str, user_prompt: str):
-
-    response = self.llm.generate(
-
-        system_prompt=system_prompt,
-
-        user_prompt=user_prompt,
-
-        temperature=0.2
-    )
-
-    return response
-
-def parse_response(self, response: str):
+    state["execution_trace"].append("Task Splitter")
 
     try:
 
-        return json.loads(response)
+        goal = state["goal"]
 
-    except json.JSONDecodeError:
+        llm = state["llm"]
 
-        raise ValueError("Task Splitter returned invalid JSON.")
+        splitter = TaskSplitter(llm)
 
+        system_prompt, user_prompt = splitter.build_prompt(goal)
 
-def validate(self, data):
+        response = splitter.call_llm(
+            system_prompt,
+            user_prompt,
+        )
 
-    return TaskSplitterResponse(**data)
-def task_splitter_node(state):
-    print("Task Splitter Running")
+        parsed = splitter.parse_response(response)
 
-    state["current_agent"] = "Task Splitter"
-    state["execution_trace"].append("Task Splitter")
+        validated = splitter.validate(parsed)
 
-    goal = state["goal"]
+        state["tasks"] = validated.tasks
 
-    system_prompt = TASK_SPLITTER_SYSTEM_PROMPT
-    user_prompt = build_task_splitter_prompt(goal)
+        state["status"] = "Task Splitter Completed"
 
-    print(system_prompt)
-    print(user_prompt)
+        print("Task Splitter Completed Successfully")
 
-    # LLM call will be added in the next step
+    except Exception as e:
 
-    return state
+        state["status"] = "Task Splitter Failed"
 
+        state["error"] = str(e)
 
-if __name__ == "__main__":
-    state = {
-        "goal": "Research AI",
-        "current_agent": "",
-        "execution_trace": []
-    }
-
-    result = task_splitter_node(state)
-
-    print(result) '''
-
-import json
-
-from models.task_model import TaskSplitterResponse
-from prompts.splitter_prompt import (
-    TASK_SPLITTER_SYSTEM_PROMPT,
-    build_task_splitter_prompt,
-)
-
-
-def task_splitter_node(state):
-    print("========== Task Splitter ==========")
-
-    state["current_agent"] = "Task Splitter"
-    state["execution_trace"].append("Task Splitter")
-
-    goal = state["goal"]
-
-    system_prompt = TASK_SPLITTER_SYSTEM_PROMPT
-    user_prompt = build_task_splitter_prompt(goal)
-
-    print("Goal:", goal)
-    print("System Prompt Loaded")
-    print("User Prompt:")
-    print(user_prompt)
-
-    # Gemini/Ollama call will be added next
+        print(e)
 
     return state
 
+
+# ===========================================================
+# Local Testing
+# ===========================================================
+
 if __name__ == "__main__":
+
+    class DummyLLM:
+
+        def generate(
+            self,
+            system_prompt,
+            user_prompt,
+            temperature,
+        ):
+
+            return """
+            {
+                "success": true,
+                "parallel": true,
+                "tasks": [
+                    {
+                        "task_id":"1",
+                        "title":"Research AI",
+                        "agent":"Researcher",
+                        "dependencies":[],
+                        "status":"pending"
+                    }
+                ]
+            }
+            """
 
     state = {
         "goal": "Research AI",
+        "llm": DummyLLM(),
         "execution_trace": [],
-        "current_agent": ""
+        "current_agent": "",
+        "tasks": [],
+        "status": "",
+        "error": ""
     }
 
     result = task_splitter_node(state)
 
     print(result)
-
-
-
-
-
-
-

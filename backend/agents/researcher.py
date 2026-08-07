@@ -1,60 +1,159 @@
+import json
+
 from graph.state import WorkflowState
 
 
-def researcher_node_1(state: WorkflowState):
+class Researcher:
     """
-    Research Agent 1
-    Performs research for the first assigned task.
+    Research Agent
     """
 
-    print("Research Agent 1 Running...")
+    def __init__(self, llm_provider):
+        self.llm = llm_provider
+
+    def build_prompt(self, task):
+
+        system_prompt = """
+You are a Research Agent.
+
+Your job is to research the assigned task.
+
+Return only JSON.
+
+{
+    "summary":"",
+    "key_points":[],
+    "references":[]
+}
+"""
+
+        user_prompt = f"""
+Research the following task.
+
+Task ID:
+{task["task_id"]}
+
+Task:
+{task["title"]}
+"""
+
+        return system_prompt, user_prompt
+
+    def call_llm(
+        self,
+        system_prompt,
+        user_prompt,
+    ):
+
+        return self.llm.generate(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=0.2,
+        )
+
+    def parse_response(self, response):
+
+        try:
+            return json.loads(response)
+
+        except Exception:
+            return {
+                "summary": response,
+                "key_points": [],
+                "references": []
+            }
+
+
+# ==========================================================
+# Research Agent 1
+# ==========================================================
+
+def researcher_node_1(state):
+
+    print("\n========== Research Agent 1 ==========\n")
 
     state["current_agent"] = "ResearchAgent1"
     state["execution_trace"].append("ResearchAgent1")
 
-    # Read first task (if available)
-    task = state["tasks"][0] if state["tasks"] else {}
+    try:
 
-    state["research_agent_1"] = {
-        "task_id": task.get("task_id", "task_001"),
-        "title": task.get("title", "Research Task 1"),
-        "result": {
-            "summary": "Dummy research result for Research Agent 1.",
-            "source": "LLM",
-            "status": "completed"
+        task = state["tasks"][0]
+
+        llm = state["llm"]
+
+        researcher = Researcher(llm)
+
+        system_prompt, user_prompt = researcher.build_prompt(task)
+
+        response = researcher.call_llm(
+            system_prompt,
+            user_prompt
+        )
+
+        result = researcher.parse_response(response)
+
+        state["research_agent_1"] = {
+            "task_id": task["task_id"],
+            "title": task["title"],
+            "result": result
         }
-    }
+
+    except Exception as e:
+
+        state["error"] = str(e)
+
+        state["research_agent_1"] = {}
 
     return state
 
 
-def researcher_node_2(state: WorkflowState):
-    """
-    Research Agent 2
-    Performs research for the second assigned task.
-    """
+# ==========================================================
+# Research Agent 2
+# ==========================================================
 
-    print("Research Agent 2 Running...")
+def researcher_node_2(state):
+
+    print("\n========== Research Agent 2 ==========\n")
 
     state["current_agent"] = "ResearchAgent2"
     state["execution_trace"].append("ResearchAgent2")
 
-    task = state["tasks"][1] if len(state["tasks"]) > 1 else {}
+    try:
 
-    state["research_agent_2"] = {
-        "task_id": task.get("task_id", "task_002"),
-        "title": task.get("title", "Research Task 2"),
-        "result": {
-            "summary": "Dummy research result for Research Agent 2.",
-            "source": "LLM",
-            "status": "completed"
-        }
-    }
+        if len(state["tasks"]) > 1:
 
-    # Merge research outputs for Summarizer
-    state["research_results"] = [
-        state["research_agent_1"],
-        state["research_agent_2"]
-    ]
+            task = state["tasks"][1]
+
+            llm = state["llm"]
+
+            researcher = Researcher(llm)
+
+            system_prompt, user_prompt = researcher.build_prompt(task)
+
+            response = researcher.call_llm(
+                system_prompt,
+                user_prompt
+            )
+
+            result = researcher.parse_response(response)
+
+            state["research_agent_2"] = {
+                "task_id": task["task_id"],
+                "title": task["title"],
+                "result": result
+            }
+
+        else:
+
+            state["research_agent_2"] = {}
+
+        state["research_results"] = [
+            state["research_agent_1"],
+            state["research_agent_2"],
+        ]
+
+    except Exception as e:
+
+        state["error"] = str(e)
 
     return state
