@@ -1,3 +1,4 @@
+import WorkflowGraph from "../components/WorkflowGraph";
 import { orchestrate } from "../services/api";
 import React, { useState, useRef, useEffect } from "react";
 
@@ -24,28 +25,34 @@ const historyItems = [
 
 const workflowStages = [
   {
-    name: "Intent Planning",
-    detail: "Classifies the request and defines a strategy",
-    model: "GPT-4.1",
-    icon: "◈",
+    name: "Planner",
+    detail: "Analyzes the user goal.",
+    icon: "🤖",
   },
   {
-    name: "Evidence Research",
-    detail: "Collects supporting evidence and context",
-    model: "Gemini 2.5 Pro",
-    icon: "⬡",
+    name: "Task Splitter",
+    detail: "Breaks the goal into subtasks.",
+    icon: "📋",
   },
   {
-    name: "Response Synthesis",
-    detail: "Combines findings into a structured answer",
-    model: "Claude 3.7",
-    icon: "◆",
+    name: "Research Agent 1",
+    detail: "Researches the first task.",
+    icon: "🔍",
   },
   {
-    name: "Quality Verification",
-    detail: "Checks consistency, safety, and completeness",
-    model: "Hybrid review",
-    icon: "✦",
+    name: "Research Agent 2",
+    detail: "Researches the second task.",
+    icon: "🔍",
+  },
+  {
+    name: "Summarizer",
+    detail: "Combines all research.",
+    icon: "📝",
+  },
+  {
+    name: "Verifier",
+    detail: "Validates the final output.",
+    icon: "✅",
   },
 ];
 
@@ -62,7 +69,7 @@ const promptSuggestions = [
   "Analyze market competitors",
 ];
 
-const Dashboard = ({ backendStatus, currentUser, onBack }) => {
+const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -82,112 +89,114 @@ const Dashboard = ({ backendStatus, currentUser, onBack }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isThinking]);
 
-  
   const activeStageObj = workflowStages.find((s) => s.name === activeStage);
   const activeIndex = workflowStages.findIndex((s) => s.name === activeStage);
-  
+
   const handleSubmit = async (event) => {
-  event.preventDefault();
+    event.preventDefault();
 
-  if (!input.trim() || isThinking) return;
+    if (!input.trim() || isThinking) return;
 
-  const goal = input.trim();
+    const goal = input.trim();
 
-  const userMessage = {
-    id: Date.now(),
-    role: "user",
-    text: goal,
-    meta: `Model: ${selectedModel}`,
-  };
+    const userMessage = {
+      id: Date.now(),
+      role: "user",
+      text: goal,
+      meta: `Model: ${selectedModel}`,
+    };
 
-  setMessages((prev) => [...prev, userMessage]);
-  setInput("");
-  setIsThinking(true);
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
+    setIsThinking(true);
 
-  try {
-    // Stage 1
-    setActiveStage("Intent Planning");
+    try {
+      // Stage 1
+      // Stage 1
+setActiveStage("Planner");
+await new Promise((resolve) => setTimeout(resolve, 300));
 
-    const provider =
-      selectedModel === "Auto"
-        ? "groq"
-        : selectedModel.toLowerCase();
+// Stage 2
+setActiveStage("Task Splitter");
+await new Promise((resolve) => setTimeout(resolve, 300));
 
-    // ===========================
-    // Call FastAPI Backend
-    // ===========================
-    const result = await orchestrate(
-      goal,
-      provider
-    );
+const provider =
+  selectedModel === "Auto"
+    ? "groq"
+    : selectedModel.toLowerCase();
 
-    console.log("Backend Response:", result);
+// ===========================
+// Call FastAPI Backend
+// ===========================
+const result = await orchestrate(
+  goal,
+  provider
+);
 
-    // Stage 2
-    setActiveStage("Evidence Research");
-    await new Promise((resolve) => setTimeout(resolve, 300));
+console.log("Backend Response:", result);
 
-    // Stage 3
-    setActiveStage("Response Synthesis");
-    await new Promise((resolve) => setTimeout(resolve, 300));
+// Stage 3
+setActiveStage("Research Agent 1");
+await new Promise((resolve) => setTimeout(resolve, 300));
 
-    // Stage 4
-    setActiveStage("Quality Verification");
+// Stage 4
+setActiveStage("Research Agent 2");
+await new Promise((resolve) => setTimeout(resolve, 300));
 
-    let reply = "Workflow completed successfully.";
+// Stage 5
+setActiveStage("Summarizer");
+await new Promise((resolve) => setTimeout(resolve, 300));
 
-    if (result.summary) {
-      if (typeof result.summary === "string") {
-        reply = result.summary;
-      } else if (result.summary.summary) {
-        reply = result.summary.summary;
+// Stage 6
+setActiveStage("Verifier");
+await new Promise((resolve) => setTimeout(resolve, 300));
+
+let reply = "Workflow completed successfully.";
+      if (result.summary) {
+        if (typeof result.summary === "string") {
+          reply = result.summary;
+        } else if (result.summary.summary) {
+          reply = result.summary.summary;
+        }
       }
-    }
 
-    const assistantMessage = {
-      id: Date.now() + 1,
-      role: "assistant",
-      text: reply,
-      meta:
-        result.verification?.verified
+      const assistantMessage = {
+        id: Date.now() + 1,
+        role: "assistant",
+        text: reply,
+        meta: result.verification?.verified
           ? `Verified ✅ (${Math.round(
               (result.verification.confidence || 0) * 100
             )}%)`
           : "Completed",
-    };
+      };
 
-    setMessages((prev) => [
-      ...prev,
-      assistantMessage,
-    ]);
+      setMessages((prev) => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error(error);
 
-  } catch (error) {
-    console.error(error);
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: Date.now() + 1,
-        role: "assistant",
-        text:
-          error.message ||
-          "Failed to connect to backend.",
-        meta: "Error",
-      },
-    ]);
-  } finally {
-    setIsThinking(false);
-  }
-};
-
-
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          role: "assistant",
+          text: error.message || "Failed to connect to backend.",
+          meta: "Error",
+        },
+      ]);
+    } finally {
+      setIsThinking(false);
+    }
+  };
 
   return (
     <div className="app-shell">
       {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside className="sidebar" aria-label="Navigation sidebar">
         <div className="brand-block">
-          <div className="brand-icon" aria-hidden="true">✦</div>
+          <div className="brand-icon" aria-hidden="true">
+            ✦
+          </div>
           <div>
             <p className="eyebrow">Orchestrator AI</p>
             <h1>Multi-model workspace</h1>
@@ -237,18 +246,33 @@ const Dashboard = ({ backendStatus, currentUser, onBack }) => {
         {/* Active stage indicator */}
         <div className="sidebar-card active-stage-card">
           <div className="section-title">Active stage</div>
-          <div className="active-stage-display" aria-live="polite" aria-label={`Active stage: ${activeStage}`}>
-            <div className="active-stage-icon" aria-hidden="true">{activeStageObj?.icon}</div>
+          <div
+            className="active-stage-display"
+            aria-live="polite"
+            aria-label={`Active stage: ${activeStage}`}
+          >
+            <div className="active-stage-icon" aria-hidden="true">
+              {activeStageObj?.icon}
+            </div>
             <div>
               <strong className="active-stage-name">{activeStage}</strong>
               <p className="active-stage-detail">{activeStageObj?.detail}</p>
             </div>
           </div>
-          <div className="stage-progress" aria-label={`Stage ${activeIndex + 1} of ${workflowStages.length}`}>
+          <div
+            className="stage-progress"
+            aria-label={`Stage ${activeIndex + 1} of ${workflowStages.length}`}
+          >
             {workflowStages.map((_, i) => (
               <div
                 key={i}
-                className={`progress-dot ${i === activeIndex ? "active" : i < activeIndex ? "done" : ""}`}
+                className={`progress-dot ${
+                  i === activeIndex
+                    ? "active"
+                    : i < activeIndex
+                    ? "done"
+                    : ""
+                }`}
                 aria-hidden="true"
               />
             ))}
@@ -268,12 +292,19 @@ const Dashboard = ({ backendStatus, currentUser, onBack }) => {
             </p>
           </div>
           <div className="topbar-actions">
-            <div className="user-badge" aria-label={`Signed in as ${currentUser?.name || currentUser?.email}`}>
+            <div
+              className="user-badge"
+              aria-label={`Signed in as ${
+                currentUser?.name || currentUser?.email
+              }`}
+            >
               {currentUser?.name
                 ? currentUser.name
                 : currentUser?.email?.split("@")[0]}
             </div>
-            <label htmlFor="model-select" className="sr-only">Select AI model</label>
+            <label htmlFor="model-select" className="sr-only">
+              Select AI model
+            </label>
             <select
               id="model-select"
               className="model-select"
@@ -288,7 +319,9 @@ const Dashboard = ({ backendStatus, currentUser, onBack }) => {
               ))}
             </select>
             <div
-              className={`status-pill ${backendStatus === "Backend offline" ? "offline" : ""}`}
+              className={`status-pill ${
+                backendStatus === "Backend offline" ? "offline" : ""
+              }`}
               role="status"
               aria-label={backendStatus}
             >
@@ -319,7 +352,9 @@ const Dashboard = ({ backendStatus, currentUser, onBack }) => {
                 <div
                   key={message.id}
                   className={`message-row ${message.role}`}
-                  aria-label={`${message.role === "user" ? "You" : "Orchestrator"}: ${message.text}`}
+                  aria-label={`${
+                    message.role === "user" ? "You" : "Orchestrator"
+                  }: ${message.text}`}
                 >
                   <div className="avatar" aria-hidden="true">
                     {message.role === "user" ? "U" : "AI"}
@@ -334,12 +369,21 @@ const Dashboard = ({ backendStatus, currentUser, onBack }) => {
               ))}
 
               {isThinking && (
-                <div className="message-row assistant" aria-label="Orchestrator is thinking">
-                  <div className="avatar" aria-hidden="true">AI</div>
+                <div
+                  className="message-row assistant"
+                  aria-label="Orchestrator is thinking"
+                >
+                  <div className="avatar" aria-hidden="true">
+                    AI
+                  </div>
                   <div className="bubble thinking">
-                    <div className="message-meta">Routing across model pool…</div>
+                    <div className="message-meta">
+                      Routing across model pool…
+                    </div>
                     <div className="thinking-dots" aria-hidden="true">
-                      <span /><span /><span />
+                      <span />
+                      <span />
+                      <span />
                     </div>
                   </div>
                 </div>
@@ -347,7 +391,11 @@ const Dashboard = ({ backendStatus, currentUser, onBack }) => {
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="prompt-row" role="group" aria-label="Prompt suggestions">
+            <div
+              className="prompt-row"
+              role="group"
+              aria-label="Prompt suggestions"
+            >
               {promptSuggestions.map((suggestion) => (
                 <button
                   key={suggestion}
@@ -390,27 +438,13 @@ const Dashboard = ({ backendStatus, currentUser, onBack }) => {
           {/* Insight panel */}
           <aside className="insight-panel" aria-label="Workflow insight panel">
             <div className="info-card">
-              <div className="section-title">LangGraph flow</div>
-              <div className="flow-rail" role="list">
-                {workflowStages.map((stage) => (
-                  <div
-                    key={stage.name}
-                    className={`flow-step ${stage.name === activeStage ? "active" : ""}`}
-                    role="listitem"
-                    aria-current={stage.name === activeStage ? "step" : undefined}
-                  >
-                    <span className="step-dot" aria-hidden="true" />
-                    <div>
-                      <strong>{stage.name}</strong>
-                      <p>{stage.detail}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <div className="section-title">LangGraph Flow</div>
+              <WorkflowGraph activeStage={activeStage} />
             </div>
 
             <div className="info-card">
-              <div className="section-title">Model pool</div>
+              <div className="section-title">Model Pool</div>
+
               <div className="model-list" role="list">
                 {modelPool.map((model) => (
                   <div
