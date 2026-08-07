@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 const historyItems = [
   {
@@ -26,34 +26,39 @@ const workflowStages = [
     name: "Intent Planning",
     detail: "Classifies the request and defines a strategy",
     model: "GPT-4.1",
+    icon: "◈",
   },
   {
     name: "Evidence Research",
     detail: "Collects supporting evidence and context",
     model: "Gemini 2.5 Pro",
+    icon: "⬡",
   },
   {
     name: "Response Synthesis",
     detail: "Combines findings into a structured answer",
     model: "Claude 3.7",
+    icon: "◆",
   },
   {
     name: "Quality Verification",
     detail: "Checks consistency, safety, and completeness",
     model: "Hybrid review",
+    icon: "✦",
   },
 ];
 
 const modelPool = [
-  { name: "GPT-4.1", role: "Planning" },
-  { name: "Gemini 2.5 Pro", role: "Research" },
-  { name: "Claude 3.7", role: "Synthesis" },
+  { name: "GPT-4.1", role: "Planning", color: "#10b981" },
+  { name: "Gemini 2.5 Pro", role: "Research", color: "#818cf8" },
+  { name: "Claude 3.7", role: "Synthesis", color: "#f59e0b" },
 ];
 
 const promptSuggestions = [
   "Compare two product strategies",
   "Draft a research-backed roadmap",
   "Summarize this workflow clearly",
+  "Analyze market competitors",
 ];
 
 const Dashboard = ({ backendStatus, currentUser, onBack }) => {
@@ -69,6 +74,12 @@ const Dashboard = ({ backendStatus, currentUser, onBack }) => {
   const [isThinking, setIsThinking] = useState(false);
   const [activeStage, setActiveStage] = useState("Evidence Research");
   const [selectedModel, setSelectedModel] = useState("Auto");
+  const messagesEndRef = useRef(null);
+
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isThinking]);
 
   const handleSubmit = (event) => {
     event.preventDefault();
@@ -78,7 +89,7 @@ const Dashboard = ({ backendStatus, currentUser, onBack }) => {
       id: Date.now(),
       role: "user",
       text: input.trim(),
-      meta: `Requested: ${selectedModel}`,
+      meta: `Model: ${selectedModel}`,
     };
     setMessages((current) => [...current, userMessage]);
     setInput("");
@@ -106,25 +117,35 @@ const Dashboard = ({ backendStatus, currentUser, onBack }) => {
 
       setMessages((current) => [...current, assistantMessage]);
       setIsThinking(false);
-    }, 900);
+    }, 1200);
   };
+
+  const activeStageObj = workflowStages.find((s) => s.name === activeStage);
+  const activeIndex = workflowStages.findIndex((s) => s.name === activeStage);
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      {/* ── Sidebar ─────────────────────────────────────────── */}
+      <aside className="sidebar" aria-label="Navigation sidebar">
         <div className="brand-block">
-          <div className="brand-icon">✦</div>
+          <div className="brand-icon" aria-hidden="true">✦</div>
           <div>
-            <p className="eyebrow">AI Orchestrator</p>
+            <p className="eyebrow">Orchestrator AI</p>
             <h1>Multi-model workspace</h1>
           </div>
         </div>
 
         <div className="sidebar-card">
           <div className="section-title">Recent history</div>
-          <div className="history-list">
+          <div className="history-list" role="list">
             {historyItems.map((item) => (
-              <button key={item.title} className="history-item" type="button">
+              <button
+                key={item.title}
+                className="history-item"
+                type="button"
+                role="listitem"
+                aria-label={`Open ${item.title}`}
+              >
                 <div className="history-top">
                   <span>{item.title}</span>
                   <span className="history-tag">{item.tag}</span>
@@ -137,7 +158,7 @@ const Dashboard = ({ backendStatus, currentUser, onBack }) => {
         </div>
 
         <div className="sidebar-card metrics-card">
-          <div className="section-title">Execution snapshot</div>
+          <div className="section-title">Live metrics</div>
           <div className="metric-grid">
             <div className="metric-box">
               <strong>3</strong>
@@ -149,42 +170,58 @@ const Dashboard = ({ backendStatus, currentUser, onBack }) => {
             </div>
             <div className="metric-box">
               <strong>100%</strong>
-              <span>Traceable</span>
+              <span>Traced</span>
             </div>
+          </div>
+        </div>
+
+        {/* Active stage indicator */}
+        <div className="sidebar-card active-stage-card">
+          <div className="section-title">Active stage</div>
+          <div className="active-stage-display" aria-live="polite" aria-label={`Active stage: ${activeStage}`}>
+            <div className="active-stage-icon" aria-hidden="true">{activeStageObj?.icon}</div>
+            <div>
+              <strong className="active-stage-name">{activeStage}</strong>
+              <p className="active-stage-detail">{activeStageObj?.detail}</p>
+            </div>
+          </div>
+          <div className="stage-progress" aria-label={`Stage ${activeIndex + 1} of ${workflowStages.length}`}>
+            {workflowStages.map((_, i) => (
+              <div
+                key={i}
+                className={`progress-dot ${i === activeIndex ? "active" : i < activeIndex ? "done" : ""}`}
+                aria-hidden="true"
+              />
+            ))}
           </div>
         </div>
       </aside>
 
-      <main className="workspace">
+      {/* ── Main workspace ───────────────────────────────────── */}
+      <main className="workspace" aria-label="AI orchestration workspace">
+        {/* Top bar */}
         <header className="topbar">
           <div className="topbar-copy">
             <p className="eyebrow">Live orchestrator</p>
-            <h2>
-              Professional multi-model execution with traceable workflow stages
-            </h2>
+            <h2>Professional multi-model execution</h2>
             <p className="topbar-subtitle">
-              Intent planning, evidence research, synthesis, and validation run
-              in sequence for accurate results.
+              Intent planning → research → synthesis → verification
             </p>
           </div>
           <div className="topbar-actions">
-            <div className="user-badge">
-              <span>
-                {currentUser?.name
-                  ? `Signed in as ${currentUser.name}`
-                  : currentUser?.email}
-              </span>
+            <div className="user-badge" aria-label={`Signed in as ${currentUser?.name || currentUser?.email}`}>
+              {currentUser?.name
+                ? currentUser.name
+                : currentUser?.email?.split("@")[0]}
             </div>
-            <button className="secondary-btn compact" onClick={onBack}>
-              Logout
-            </button>
+            <label htmlFor="model-select" className="sr-only">Select AI model</label>
             <select
+              id="model-select"
               className="model-select"
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
-              aria-label="Select model"
             >
-              <option value="Auto">Auto (stage)</option>
+              <option value="Auto">⚡ Auto (stage)</option>
               {modelPool.map((m) => (
                 <option key={m.name} value={m.name}>
                   {m.name}
@@ -193,19 +230,40 @@ const Dashboard = ({ backendStatus, currentUser, onBack }) => {
             </select>
             <div
               className={`status-pill ${backendStatus === "Backend offline" ? "offline" : ""}`}
+              role="status"
+              aria-label={backendStatus}
             >
-              ● {backendStatus}
+              {backendStatus}
             </div>
+            <button
+              id="logout-btn"
+              className="secondary-btn compact"
+              onClick={onBack}
+              aria-label="Logout"
+            >
+              Logout
+            </button>
           </div>
         </header>
 
+        {/* Grid: chat + insight */}
         <div className="workspace-grid">
-          <section className="chat-panel">
-            <div className="message-list">
+          {/* Chat panel */}
+          <section className="chat-panel" aria-label="Chat conversation">
+            <div
+              className="message-list"
+              role="log"
+              aria-live="polite"
+              aria-label="Conversation messages"
+            >
               {messages.map((message) => (
-                <div key={message.id} className={`message-row ${message.role}`}>
-                  <div className="avatar">
-                    {message.role === "user" ? "U" : "O"}
+                <div
+                  key={message.id}
+                  className={`message-row ${message.role}`}
+                  aria-label={`${message.role === "user" ? "You" : "Orchestrator"}: ${message.text}`}
+                >
+                  <div className="avatar" aria-hidden="true">
+                    {message.role === "user" ? "U" : "AI"}
                   </div>
                   <div className="bubble">
                     {message.meta && (
@@ -215,51 +273,74 @@ const Dashboard = ({ backendStatus, currentUser, onBack }) => {
                   </div>
                 </div>
               ))}
+
               {isThinking && (
-                <div className="message-row assistant">
-                  <div className="avatar">O</div>
+                <div className="message-row assistant" aria-label="Orchestrator is thinking">
+                  <div className="avatar" aria-hidden="true">AI</div>
                   <div className="bubble thinking">
-                    <p>Orchestrator is reasoning across the model pool…</p>
+                    <div className="message-meta">Routing across model pool…</div>
+                    <div className="thinking-dots" aria-hidden="true">
+                      <span /><span /><span />
+                    </div>
                   </div>
                 </div>
               )}
+              <div ref={messagesEndRef} />
             </div>
 
-            <div className="prompt-row">
+            <div className="prompt-row" role="group" aria-label="Prompt suggestions">
               {promptSuggestions.map((suggestion) => (
                 <button
                   key={suggestion}
                   type="button"
                   className="prompt-chip"
                   onClick={() => setInput(suggestion)}
+                  aria-label={`Use prompt: ${suggestion}`}
                 >
                   {suggestion}
                 </button>
               ))}
             </div>
 
-            <form className="composer" onSubmit={handleSubmit}>
+            <form
+              className="composer"
+              onSubmit={handleSubmit}
+              aria-label="Message composer"
+            >
               <input
+                id="chat-input"
                 type="text"
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
-                placeholder="Ask the orchestrator to analyze, compare, or synthesize..."
-                aria-label="User prompt"
+                placeholder="Ask the orchestrator to analyze, compare, or synthesize…"
+                aria-label="Type your message"
+                disabled={isThinking}
+                autoComplete="off"
               />
-              <button type="submit">Send</button>
+              <button
+                id="send-btn"
+                type="submit"
+                disabled={isThinking || !input.trim()}
+                aria-label="Send message"
+              >
+                {isThinking ? "…" : "Send ↗"}
+              </button>
             </form>
           </section>
 
-          <aside className="insight-panel">
+          {/* Insight panel */}
+          <aside className="insight-panel" aria-label="Workflow insight panel">
             <div className="info-card">
               <div className="section-title">LangGraph flow</div>
-              <div className="flow-rail">
+              <div className="flow-rail" role="list">
                 {workflowStages.map((stage) => (
                   <div
                     key={stage.name}
                     className={`flow-step ${stage.name === activeStage ? "active" : ""}`}
+                    role="listitem"
+                    aria-current={stage.name === activeStage ? "step" : undefined}
                   >
-                    <span className="step-dot" />
+                    <span className="step-dot" aria-hidden="true" />
                     <div>
                       <strong>{stage.name}</strong>
                       <p>{stage.detail}</p>
@@ -271,9 +352,14 @@ const Dashboard = ({ backendStatus, currentUser, onBack }) => {
 
             <div className="info-card">
               <div className="section-title">Model pool</div>
-              <div className="model-list">
+              <div className="model-list" role="list">
                 {modelPool.map((model) => (
-                  <div key={model.name} className="model-pill">
+                  <div
+                    key={model.name}
+                    className="model-pill"
+                    role="listitem"
+                    aria-label={`${model.name} — ${model.role}`}
+                  >
                     <span>{model.name}</span>
                     <small>{model.role}</small>
                   </div>
