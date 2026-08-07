@@ -140,7 +140,7 @@ def create_state(goal, config):
         "execution_trace": [],
     }
 '''
-def create_state(goal, config):
+def create_state(goal, config, documents=None):
 
     workflow_id = str(uuid.uuid4())
 
@@ -172,6 +172,9 @@ def create_state(goal, config):
         "llm": llm,
 
         "plan": {},
+        "needs_retrieval": False,
+        "documents": documents or [],
+        "retrieval": {},
         "tasks": [],
 
         "research_agent_1": {},
@@ -258,7 +261,13 @@ def run_new_workflow():
     config = choose_provider()
     goal = input("\nEnter Goal:\n\n> ")
 
-    state = create_state(goal, config)
+    doc_input = input(
+        "\nDocument path(s) to attach (comma-separated, blank for none):\n\n> "
+    ).strip()
+
+    documents = [d.strip() for d in doc_input.split(",") if d.strip()]
+
+    state = create_state(goal, config, documents)
 
     start_logging(state["workflow_id"])
 

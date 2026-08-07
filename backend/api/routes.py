@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 import uuid
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -8,13 +9,20 @@ load_dotenv()
 from api.schemas import (
     OrchestrateRequest,
     OrchestrateResponse,
+    UploadResponse,
 )
 
+from agents.retrieval_agent import SUPPORTED_EXTENSIONS
 from graph.builder import build_workflow
 from llm.provider_factory import get_provider
 
 
 router = APIRouter()
+
+UPLOAD_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "uploads",
+)
 
 
 # ==========================================================
@@ -59,10 +67,40 @@ def providers():
 
 
 # ==========================================================
+# Upload a document for later retrieval
+# ==========================================================
+
+@router.post("/upload", response_model=UploadResponse)
+def upload_document(file: UploadFile = File(...)):
+
+    ext = Path(file.filename).suffix.lower()
+
+    if ext not in SUPPORTED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '{ext}'. Supported: {sorted(SUPPORTED_EXTENSIONS)}",
+        )
+
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+    safe_name = f"{uuid.uuid4().hex[:10]}_{file.filename}"
+
+    path = os.path.join(UPLOAD_DIR, safe_name)
+
+    with open(path, "wb") as f:
+        f.write(file.file.read())
+
+    return UploadResponse(
+        path=path,
+        filename=file.filename,
+    )
+
+
+# ==========================================================
 # Create Workflow State
 # ==========================================================
 
-def create_state(goal: str, provider: str):
+def create_state(goal: str, provider: str, documents=None):
 
     provider = provider.lower()
 
@@ -112,6 +150,12 @@ def create_state(goal: str, provider: str):
 
         "plan": {},
 
+        "needs_retrieval": False,
+
+        "documents": documents or [],
+
+        "retrieval": {},
+
         "tasks": [],
 
         "research_agent_1": {},
@@ -148,7 +192,8 @@ def orchestrate(request: OrchestrateRequest):
 
         state = create_state(
             request.goal,
-            request.provider
+            request.provider,
+            request.documents,
         )
 
         result = workflow.invoke(state)
@@ -158,6 +203,8 @@ def orchestrate(request: OrchestrateRequest):
             workflow_id=result["workflow_id"],
 
             execution_trace=result["execution_trace"],
+
+            retrieval=result.get("retrieval", {}),
 
             summary=result["summary"],
 

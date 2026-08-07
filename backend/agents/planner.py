@@ -6,6 +6,70 @@ from prompts.planner_prompt import (
 )
 
 
+# Keywords that signal the goal is about a document/knowledge source.
+# Mirrors the "RETRIEVAL RULES" examples in PLANNER_SYSTEM_PROMPT, so the
+# code-level decision and the LLM's own JSON plan stay in sync.
+DOCUMENT_KEYWORDS = [
+    "uploaded pdf",
+    "uploaded txt",
+    "uploaded markdown",
+    "pdf",
+    "txt",
+    ".md",
+    "document",
+    "notes",
+    "report",
+    "manual",
+    "stored knowledge",
+    "stored chunks",
+    "knowledge base",
+    "document database",
+    "attached file",
+    "attachment",
+]
+
+
+def mentions_documents(goal: str) -> bool:
+    """True if the goal text itself references a document/knowledge source."""
+
+    if not goal:
+        return False
+
+    lowered = goal.lower()
+
+    return any(keyword in lowered for keyword in DOCUMENT_KEYWORDS)
+
+
+def requires_retrieval(state: dict, plan: dict) -> bool:
+    """
+    Decide whether the Retriever should actually run for this workflow.
+
+    True when ANY of the following hold:
+    - Documents were uploaded/attached to the request (state["documents"]).
+    - The goal text itself mentions a document/knowledge source.
+    - The Planner's own generated plan says requires_input.type == "document".
+
+    Uploaded documents or goal keywords always win, even if the LLM's plan
+    forgot to add a Retriever — the plan JSON is a hint, not the source of
+    truth, since a model can (and does) skip the instruction.
+    """
+
+    has_uploaded_docs = bool(state.get("documents"))
+
+    plan_requires_doc = False
+
+    if isinstance(plan, dict):
+        requires_input = plan.get("requires_input", {})
+        if isinstance(requires_input, dict):
+            plan_requires_doc = requires_input.get("type") == "document"
+
+    return (
+        has_uploaded_docs
+        or plan_requires_doc
+        or mentions_documents(state.get("goal", ""))
+    )
+
+
 class Planner:
     """
     Planner Agent
@@ -107,9 +171,17 @@ def planner_node(state: WorkflowState):
 
         state["plan"] = workflow
 
+        state["needs_retrieval"] = requires_retrieval(state, workflow)
+
         state["status"] = "Planner Completed"
 
         print("Planner Finished Successfully")
+
+        print(
+            f"Retriever will "
+            f"{'run' if state['needs_retrieval'] else 'be skipped'} "
+            f"for this workflow."
+        )
 
     except Exception as e:
 
