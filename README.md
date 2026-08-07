@@ -23,6 +23,9 @@ Orchestrator-Ai acts as the **"brain" layer above your AI agents**. Instead of t
 
 Think of it as a **project manager for your AI agents**: it doesn't do the specialized work itself, but it knows who should do what, in what order, and keeps everything moving.
 
+<img width="1280" height="853" alt="image" src="https://github.com/user-attachments/assets/ddb7d816-5c98-41f7-b29d-5b9800574a67" />
+
+
 > ⚠️ **Note:** This project is under active development. Architecture, agent interfaces, and UI are evolving — this README documents the current design intent and will be updated as features land.
 
 ---
