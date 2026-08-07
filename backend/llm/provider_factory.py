@@ -25,8 +25,8 @@ OpenAI-Compatible Providers
 - Any custom OpenAI-compatible endpoint
 """
 
-from adapters.gemini import GeminiProvider
-from adapters.openai_compatible import OpenAICompatible
+from llm.adapters.gemini import GeminiProvider
+from llm.adapters.openai_compatible import OpenAICompatible
 
 
 # Default endpoints for OpenAI-compatible APIs
