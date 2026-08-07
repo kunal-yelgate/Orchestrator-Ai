@@ -11,6 +11,7 @@ If you add/reorder nodes there, update NODE_SEQUENCE here too.
 """
 
 from agents.planner import planner_node
+from agents.retrieval_agent import retriever_node
 from agents.task_splitter import task_splitter_node
 from agents.researcher import researcher_node_1, researcher_node_2
 from agents.summarizer import summarizer_node
@@ -18,8 +19,12 @@ from agents.verifier import verifier_node
 
 from utils.checkpoint import save_checkpoint
 
+# Retriever always stays in the sequence (so checkpoint step indices never
+# shift). It's a cheap no-op whenever the Planner decided retrieval wasn't
+# needed for this goal — see agents/retrieval_agent.py:retriever_node().
 NODE_SEQUENCE = [
     ("Planner", planner_node),
+    ("Retriever", retriever_node),
     ("TaskSplitter", task_splitter_node),
     ("ResearchAgent1", researcher_node_1),
     ("ResearchAgent2", researcher_node_2),

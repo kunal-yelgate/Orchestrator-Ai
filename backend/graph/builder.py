@@ -3,6 +3,7 @@ from langgraph.graph import StateGraph, START, END
 from graph.state import WorkflowState
 
 from agents.planner import planner_node
+from agents.retrieval_agent import retriever_node
 from agents.task_splitter import task_splitter_node
 from agents.researcher import (
     researcher_node_1,
@@ -26,6 +27,11 @@ def build_workflow():
     workflow.add_node(
         "Planner",
         planner_node,
+    )
+
+    workflow.add_node(
+        "Retriever",
+        retriever_node,
     )
 
     workflow.add_node(
@@ -62,8 +68,16 @@ def build_workflow():
         "Planner",
     )
 
+    # Retriever always sits in the sequence, but it's a cheap no-op
+    # whenever the Planner decided retrieval wasn't needed
+    # (state["needs_retrieval"] is False) — see retriever_node().
     workflow.add_edge(
         "Planner",
+        "Retriever",
+    )
+
+    workflow.add_edge(
+        "Retriever",
         "TaskSplitter",
     )
 

@@ -11,12 +11,18 @@ class Researcher:
     def __init__(self, llm_provider):
         self.llm = llm_provider
 
-    def build_prompt(self, task):
+    def build_prompt(self, task, retrieval=None):
 
         system_prompt = """
 You are a Research Agent.
 
 Your job is to research the assigned task.
+
+You may be given context that was already retrieved from documents the
+user uploaded. If that context answers (or partially answers) the task,
+use and build on it. If it does not cover the task — or no document
+context is provided at all — research the task yourself using your own
+knowledge and reasoning instead of leaving it unanswered.
 
 Return ONLY valid JSON.
 
@@ -27,6 +33,29 @@ Return ONLY valid JSON.
 }
 """
 
+        retrieval = retrieval or {}
+
+        document_context_block = ""
+
+        if retrieval.get("ran") and retrieval.get("found"):
+
+            document_context_block = f"""
+Document Context (already retrieved from the user's uploaded documents):
+
+{retrieval.get("answer", "")}
+
+Use this as your primary source where relevant. Fill any gaps with your
+own research.
+"""
+
+        elif retrieval.get("ran") and not retrieval.get("found"):
+
+            document_context_block = """
+The uploaded documents were checked but did not contain information
+relevant to this task. Research this task yourself using your own
+knowledge and reasoning.
+"""
+
         user_prompt = f"""
 Research the following task.
 
@@ -35,6 +64,7 @@ Task ID:
 
 Task:
 {task["title"]}
+{document_context_block}
 """
 
         return system_prompt, user_prompt
@@ -104,7 +134,10 @@ def researcher_node_1(state: WorkflowState):
 
         researcher = Researcher(state["llm"])
 
-        system_prompt, user_prompt = researcher.build_prompt(task)
+        system_prompt, user_prompt = researcher.build_prompt(
+            task,
+            state.get("retrieval"),
+        )
 
         response = researcher.call_llm(
             system_prompt,
@@ -169,7 +202,10 @@ def researcher_node_2(state: WorkflowState):
 
         researcher = Researcher(state["llm"])
 
-        system_prompt, user_prompt = researcher.build_prompt(task)
+        system_prompt, user_prompt = researcher.build_prompt(
+            task,
+            state.get("retrieval"),
+        )
 
         response = researcher.call_llm(
             system_prompt,

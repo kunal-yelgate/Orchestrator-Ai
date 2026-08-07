@@ -42,6 +42,28 @@ class WorkflowState(TypedDict):
 
     plan: Dict[str, Any]
 
+    # Set by the Planner: True when the goal mentions a document/knowledge
+    # source or files were uploaded with the request. Consumed by the
+    # Retriever node to decide whether to actually run retrieval.
+    needs_retrieval: bool
+
+    # ===================================================
+    # Retriever
+    # ===================================================
+
+    # Paths to uploaded/attached documents (pdf, txt, md).
+    documents: List[str]
+
+    # Output of the Retriever node:
+    # {
+    #   "ran": bool,
+    #   "found": bool,
+    #   "answer": str,
+    #   "documents_used": List[str],
+    #   "chunks_used": List[str],
+    # }
+    retrieval: Dict[str, Any]
+
     # ===================================================
     # Task Splitter
     # ===================================================
