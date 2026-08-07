@@ -634,13 +634,116 @@
   50%       { opacity: 0.3; }
 }
 
-/* ─── Workspace grid ──────────────────────────────────────────────── */
-.workspace-grid {
-  display: grid;
-  grid-template-columns: 1.8fr 0.75fr;
-  gap: var(--space-4);
-  flex: 1;
-  min-height: 0;
+/* ──────────────────────────────────────────────────────────────
+   WORKSPACE GRID
+────────────────────────────────────────────────────────────── */
+
+.workspace-grid{
+    display:grid;
+
+    grid-template-columns:
+        minmax(0,2.2fr)
+        minmax(380px,430px);
+
+    gap:24px;
+
+    flex:1;
+
+    min-height:0;
+
+    align-items:start;
+}
+
+.chat-panel,
+.insight-panel{
+    display:flex;
+    flex-direction:column;
+
+    gap:20px;
+
+    min-height:0;
+}
+
+
+/* ──────────────────────────────────────────────────────────────
+   RIGHT PANEL
+────────────────────────────────────────────────────────────── */
+
+.insight-panel{
+
+    min-width:380px;
+
+    overflow-y:auto;
+
+    padding-right:2px;
+
+}
+
+
+/* ──────────────────────────────────────────────────────────────
+   INFORMATION CARD
+────────────────────────────────────────────────────────────── */
+
+.info-card{
+
+    background:rgba(13,13,20,.90);
+
+    border:1px solid rgba(124,58,237,.18);
+
+    border-radius:20px;
+
+    padding:24px;
+
+    backdrop-filter:blur(18px);
+
+    box-shadow:
+        0 10px 35px rgba(0,0,0,.35);
+
+    overflow:hidden;
+
+    transition:.3s;
+}
+
+.info-card:hover{
+
+    border-color:rgba(124,58,237,.35);
+
+    box-shadow:
+        0 14px 45px rgba(124,58,237,.12);
+
+}
+
+
+/* ──────────────────────────────────────────────────────────────
+   RESPONSIVE
+────────────────────────────────────────────────────────────── */
+
+@media (max-width:1200px){
+
+    .workspace-grid{
+
+        grid-template-columns:
+            minmax(0,1.8fr)
+            340px;
+
+    }
+
+}
+
+@media (max-width:900px){
+
+    .workspace-grid{
+
+        grid-template-columns:1fr;
+
+    }
+
+    .insight-panel{
+
+        min-width:100%;
+
+    }
+
 }
 
 .chat-panel,
@@ -1569,4 +1672,63 @@
 
 .link-btn:hover { color: #c084fc; }
 
+/* ── Open inbox button (primary style with external link feel) ──── */
+.open-inbox-btn {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  margin-bottom: var(--space-5);
+  background: linear-gradient(135deg, rgba(6,182,212,0.2), rgba(124,58,237,0.15));
+  border: 1px solid rgba(6,182,212,0.35);
+  color: #38bdf8;
+  box-shadow: 0 4px 16px rgba(6,182,212,0.15);
+}
 
+.open-inbox-btn:hover {
+  background: linear-gradient(135deg, rgba(6,182,212,0.3), rgba(124,58,237,0.22));
+  box-shadow: 0 6px 24px rgba(6,182,212,0.3);
+  color: #7dd3fc;
+}
+
+/* ── Verify resend section ──────────────────────────────────────── */
+.verify-resend-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  width: 100%;
+}
+
+.verify-resend-row .link-btn {
+  font-size: 0.85rem;
+}
+
+.verify-resend-row .link-btn:disabled {
+  color: var(--text-tertiary);
+  text-decoration: none;
+  cursor: default;
+}
+
+.rate-note {
+  font-size: 0.72rem;
+  color: #f59e0b;
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.2);
+  border-radius: var(--r-md);
+  padding: var(--space-2) var(--space-3);
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* ── Back link below verify card ──────────────────────────────── */
+.back-link {
+  display: block;
+  margin-top: var(--space-4);
+  font-size: 0.82rem;
+  color: var(--text-tertiary);
+}
+
+.back-link:hover { color: var(--text-secondary); }
