@@ -1,3 +1,4 @@
+import { orchestrate } from "../services/api";
 import React, { useState, useRef, useEffect } from "react";
 
 const historyItems = [
@@ -81,47 +82,105 @@ const Dashboard = ({ backendStatus, currentUser, onBack }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isThinking]);
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    if (!input.trim() || isThinking) return;
-
-    const userMessage = {
-      id: Date.now(),
-      role: "user",
-      text: input.trim(),
-      meta: `Model: ${selectedModel}`,
-    };
-    setMessages((current) => [...current, userMessage]);
-    setInput("");
-    setIsThinking(true);
-
-    window.setTimeout(() => {
-      const currentStage = workflowStages.find(
-        (stage) => stage.name === activeStage,
-      );
-      const currentIndex = workflowStages.findIndex(
-        (stage) => stage.name === activeStage,
-      );
-      const updatedStage =
-        workflowStages[(currentIndex + 1) % workflowStages.length];
-      setActiveStage(updatedStage.name);
-
-      const modelUsed =
-        selectedModel === "Auto" ? updatedStage.model : selectedModel;
-      const assistantMessage = {
-        id: Date.now() + 1,
-        role: "assistant",
-        text: `The orchestrator has advanced to ${updatedStage.name}. ${currentStage?.detail ?? "The workflow is progressing"} and ${modelUsed} is now handling the next phase of execution.`,
-        meta: `${updatedStage.name} • ${modelUsed}`,
-      };
-
-      setMessages((current) => [...current, assistantMessage]);
-      setIsThinking(false);
-    }, 1200);
-  };
-
+  
   const activeStageObj = workflowStages.find((s) => s.name === activeStage);
   const activeIndex = workflowStages.findIndex((s) => s.name === activeStage);
+  
+  const handleSubmit = async (event) => {
+  event.preventDefault();
+
+  if (!input.trim() || isThinking) return;
+
+  const goal = input.trim();
+
+  const userMessage = {
+    id: Date.now(),
+    role: "user",
+    text: goal,
+    meta: `Model: ${selectedModel}`,
+  };
+
+  setMessages((prev) => [...prev, userMessage]);
+  setInput("");
+  setIsThinking(true);
+
+  try {
+    // Stage 1
+    setActiveStage("Intent Planning");
+
+    const provider =
+      selectedModel === "Auto"
+        ? "groq"
+        : selectedModel.toLowerCase();
+
+    // ===========================
+    // Call FastAPI Backend
+    // ===========================
+    const result = await orchestrate(
+      goal,
+      provider
+    );
+
+    console.log("Backend Response:", result);
+
+    // Stage 2
+    setActiveStage("Evidence Research");
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // Stage 3
+    setActiveStage("Response Synthesis");
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // Stage 4
+    setActiveStage("Quality Verification");
+
+    let reply = "Workflow completed successfully.";
+
+    if (result.summary) {
+      if (typeof result.summary === "string") {
+        reply = result.summary;
+      } else if (result.summary.summary) {
+        reply = result.summary.summary;
+      }
+    }
+
+    const assistantMessage = {
+      id: Date.now() + 1,
+      role: "assistant",
+      text: reply,
+      meta:
+        result.verification?.verified
+          ? `Verified ✅ (${Math.round(
+              (result.verification.confidence || 0) * 100
+            )}%)`
+          : "Completed",
+    };
+
+    setMessages((prev) => [
+      ...prev,
+      assistantMessage,
+    ]);
+
+  } catch (error) {
+    console.error(error);
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: Date.now() + 1,
+        role: "assistant",
+        text:
+          error.message ||
+          "Failed to connect to backend.",
+        meta: "Error",
+      },
+    ]);
+  } finally {
+    setIsThinking(false);
+  }
+};
+
+
 
   return (
     <div className="app-shell">
