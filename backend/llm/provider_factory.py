@@ -65,3 +65,26 @@ def get_provider(
 
         base_url=base_url
     )
+#-------------------------------------------------------------------------------------
+
+from typing import Optional
+from .base import BaseLLM
+from .gemini import GeminiLLM
+from .ollama import OllamaLLM
+
+
+def get_llm(provider: str, model: str, api_key: Optional[str] = None) -> BaseLLM:
+    """
+    Instantiate and return the appropriate LLM provider.
+    """
+    provider_lower = provider.lower()
+
+    if provider_lower == "gemini":
+        if not api_key:
+            raise ValueError("Gemini requires an API key")
+        return GeminiLLM(model, api_key)
+
+    if provider_lower == "ollama":
+        return OllamaLLM(model)
+
+    raise ValueError(f"Unsupported provider: '{provider}'. Use 'gemini' or 'ollama'.")
