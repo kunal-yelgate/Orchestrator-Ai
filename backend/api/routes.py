@@ -56,7 +56,7 @@ def providers():
 
 
 # ==========================================================
-# Create Initial Workflow State
+
 # ==========================================================
 
 def create_state(goal: str, provider: str):
@@ -126,14 +126,8 @@ def create_state(goal: str, provider: str):
         "plan": {},
 
         "workflow_name": "",
-
         "execution_mode": "",
-
         "reasoning": "",
-
-        # ==================================================
-        # Tasks
-        # ==================================================
 
         "tasks": [],
 
