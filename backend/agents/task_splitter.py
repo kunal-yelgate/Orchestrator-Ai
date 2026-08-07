@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+"""from pydantic import BaseModel, Field
 from typing import List
 import json
 
@@ -26,9 +26,15 @@ class TaskSplitterResponse(BaseModel):
 
     parallel: bool
 
-    tasks: List[Task]
+    tasks: List[Task] """
+'''import os
+import sys
 
-    
+# Add backend folder to Python path
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+)
+
 
 from models.task_model import TaskSplitterResponse
 from prompts.splitter_prompt import (
@@ -87,20 +93,80 @@ def parse_response(self, response: str):
 def validate(self, data):
 
     return TaskSplitterResponse(**data)
+def task_splitter_node(state):
+    print("Task Splitter Running")
+
+    state["current_agent"] = "Task Splitter"
+    state["execution_trace"].append("Task Splitter")
+
+    goal = state["goal"]
+
+    system_prompt = TASK_SPLITTER_SYSTEM_PROMPT
+    user_prompt = build_task_splitter_prompt(goal)
+
+    print(system_prompt)
+    print(user_prompt)
+
+    # LLM call will be added in the next step
+
+    return state
+
+
+if __name__ == "__main__":
+    state = {
+        "goal": "Research AI",
+        "current_agent": "",
+        "execution_trace": []
+    }
+
+    result = task_splitter_node(state)
+
+    print(result) '''
+
+import json
+
+from models.task_model import TaskSplitterResponse
+from prompts.splitter_prompt import (
+    TASK_SPLITTER_SYSTEM_PROMPT,
+    build_task_splitter_prompt,
+)
+
+
+def task_splitter_node(state):
+    print("========== Task Splitter ==========")
+
+    state["current_agent"] = "Task Splitter"
+    state["execution_trace"].append("Task Splitter")
+
+    goal = state["goal"]
+
+    system_prompt = TASK_SPLITTER_SYSTEM_PROMPT
+    user_prompt = build_task_splitter_prompt(goal)
+
+    print("Goal:", goal)
+    print("System Prompt Loaded")
+    print("User Prompt:")
+    print(user_prompt)
+
+    # Gemini/Ollama call will be added next
+
+    return state
+
+if __name__ == "__main__":
+
+    state = {
+        "goal": "Research AI",
+        "execution_trace": [],
+        "current_agent": ""
+    }
+
+    result = task_splitter_node(state)
+
+    print(result)
 
 
 
-def split_tasks(self, goal: str):
 
-    system_prompt, user_prompt = self.build_prompt(goal)
 
-    llm_response = self.call_llm(
-        system_prompt,
-        user_prompt
-    )
 
-    parsed = self.parse_response(llm_response)
 
-    validated = self.validate(parsed)
-
-    return validated
