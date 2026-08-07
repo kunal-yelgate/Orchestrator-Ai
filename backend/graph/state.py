@@ -12,6 +12,10 @@ class WorkflowState(TypedDict):
 
     workflow_id: str
 
+    conversation_name: str
+
+    created_at: str
+
     goal: str
 
     status: str

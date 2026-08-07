@@ -91,14 +91,45 @@ def save_checkpoint(state: dict, agent_name: str, step_index: int) -> str:
     return filepath
 
 
-def list_workflows() -> list:
-    """Return all workflow_ids that have at least one checkpoint."""
+def list_workflows():
+
     if not os.path.isdir(CHECKPOINT_ROOT):
         return []
-    return sorted(
-        d for d in os.listdir(CHECKPOINT_ROOT)
-        if os.path.isdir(os.path.join(CHECKPOINT_ROOT, d))
-    )
+
+    workflows = []
+
+    for workflow_id in os.listdir(CHECKPOINT_ROOT):
+
+        folder = os.path.join(CHECKPOINT_ROOT, workflow_id)
+
+        if not os.path.isdir(folder):
+            continue
+
+        index_file = os.path.join(folder, "_index.json")
+
+        if not os.path.exists(index_file):
+            continue
+
+        with open(index_file, "r", encoding="utf-8") as f:
+            checkpoints = json.load(f)
+
+        if not checkpoints:
+            continue
+
+        first_checkpoint = checkpoints[0]["file"]
+
+        with open(os.path.join(folder, first_checkpoint), "r", encoding="utf-8") as f:
+            payload = json.load(f)
+
+        state = payload["state"]
+
+        workflows.append({
+            "workflow_id": workflow_id,
+            "conversation_name": state.get("conversation_name", workflow_id),
+            "created_at": state.get("created_at", "")
+        })
+
+    return workflows
 
 
 def list_checkpoints(workflow_id: str) -> list:

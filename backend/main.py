@@ -1,5 +1,7 @@
 import os
 import uuid
+import re
+from datetime import datetime
 
 from dotenv import load_dotenv
 
@@ -9,6 +11,30 @@ from utils.checkpoint import list_workflows, list_checkpoints, load_checkpoint
 from utils.tee_logger import start_logging
 
 load_dotenv()
+
+def slugify(text: str, max_words: int = 5):
+
+    text = text.lower()
+
+    text = re.sub(r'[^a-z0-9\s]', '', text)
+
+    words = text.split()
+
+    return "_".join(words[:max_words])
+
+
+def generate_conversation_name(goal: str):
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    topic = slugify(goal)
+
+    return f"{timestamp}_{topic}"
+
+
+def current_time():
+
+    return datetime.now().strftime("%d %b %Y %I:%M:%S %p")
 
 
 # ==========================================================
@@ -65,8 +91,18 @@ def api_key_env_var(provider: str) -> str:
 # ==========================================================
 # Initial Workflow State
 # ==========================================================
-
+'''
 def create_state(goal, config):
+
+    conversation_name = generate_conversation_name(goal)
+
+    created_at = current_time()
+
+    "workflow_id": workflow_id,
+
+    "conversation_name": conversation_name,
+
+    "created_at": created_at,
 
     llm = get_provider(
         provider=config["provider"],
@@ -103,7 +139,53 @@ def create_state(goal, config):
         "current_agent": "",
         "execution_trace": [],
     }
+'''
+def create_state(goal, config):
 
+    workflow_id = str(uuid.uuid4())
+
+    conversation_name = generate_conversation_name(goal)
+
+    created_at = current_time()
+
+    llm = get_provider(
+        provider=config["provider"],
+        model=config["model"],
+        api_key=config["api_key"],
+        base_url=config["base_url"],
+    )
+
+    return {
+        "workflow_id": workflow_id,
+        "conversation_name": conversation_name,
+        "created_at": created_at,
+
+        "goal": goal,
+        "status": "Running",
+        "error": "",
+
+        "provider": config["provider"],
+        "model": config["model"],
+        "api_key": config["api_key"],
+        "hf_provider": "",
+        "base_url": config["base_url"],
+        "llm": llm,
+
+        "plan": {},
+        "tasks": [],
+
+        "research_agent_1": {},
+        "research_agent_2": {},
+        "research_results": [],
+
+        "summary": {},
+
+        "verification": {},
+        "final_output": {},
+
+        "current_agent": "",
+        "execution_trace": [],
+    }
 
 # ==========================================================
 # Rollback: rehydrate a loaded checkpoint into a runnable state
@@ -181,7 +263,9 @@ def run_new_workflow():
     start_logging(state["workflow_id"])
 
     print("\n==============================================")
-    print(f"WORKFLOW ID: {state['workflow_id']}")
+    print(f"Conversation : {state['conversation_name']}")
+    print(f"Created At   : {state['created_at']}")
+    print(f"Workflow ID  : {state['workflow_id']}")
     print("==============================================")
 
     print("\n==============================================")
@@ -209,13 +293,15 @@ def run_from_checkpoint():
     print("      SAVED WORKFLOWS")
     print("======================================")
 
-    for i, wf_id in enumerate(workflows, start=1):
-        print(f"{i}. {wf_id}")
+    for i, wf in enumerate(workflows, start=1):
+        print(f"\n{i}. {wf['conversation_name']}")
+
+        print(f"   Created : {wf['created_at']}")
 
     choice = input("\nSelect a workflow number: ").strip()
 
     try:
-        workflow_id = workflows[int(choice) - 1]
+        workflow_id = workflows[int(choice)-1]["workflow_id"]
     except (ValueError, IndexError):
         print("Invalid selection.")
         return
