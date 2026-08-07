@@ -1,0 +1,72 @@
+[
+  {
+    "step_index": 0,
+    "agent_name": "Planner",
+    "timestamp": "20260807T123052095618Z",
+    "status": "Planner Completed",
+    "file": "00_Planner_20260807T123052095618Z.json"
+  },
+  {
+    "step_index": 1,
+    "agent_name": "TaskSplitter",
+    "timestamp": "20260807T123052571161Z",
+    "status": "Task Splitter Completed",
+    "file": "01_TaskSplitter_20260807T123052571161Z.json"
+  },
+  {
+    "step_index": 2,
+    "agent_name": "ResearchAgent1",
+    "timestamp": "20260807T123053990437Z",
+    "status": "Task Splitter Completed",
+    "file": "02_ResearchAgent1_20260807T123053990437Z.json"
+  },
+  {
+    "step_index": 3,
+    "agent_name": "ResearchAgent2",
+    "timestamp": "20260807T123055433027Z",
+    "status": "Research Completed",
+    "file": "03_ResearchAgent2_20260807T123055433027Z.json"
+  },
+  {
+    "step_index": 4,
+    "agent_name": "Summarizer",
+    "timestamp": "20260807T123056152150Z",
+    "status": "Summarizer Completed",
+    "file": "04_Summarizer_20260807T123056152150Z.json"
+  },
+  {
+    "step_index": 5,
+    "agent_name": "Verifier",
+    "timestamp": "20260807T123056554507Z",
+    "status": "Completed",
+    "file": "05_Verifier_20260807T123056554507Z.json"
+  },
+  {
+    "step_index": 2,
+    "agent_name": "ResearchAgent1",
+    "timestamp": "20260807T123335197756Z",
+    "status": "Task Splitter Completed",
+    "file": "02_ResearchAgent1_20260807T123335197756Z.json"
+  },
+  {
+    "step_index": 3,
+    "agent_name": "ResearchAgent2",
+    "timestamp": "20260807T123336516930Z",
+    "status": "Research Completed",
+    "file": "03_ResearchAgent2_20260807T123336516930Z.json"
+  },
+  {
+    "step_index": 4,
+    "agent_name": "Summarizer",
+    "timestamp": "20260807T123337086759Z",
+    "status": "Summarizer Completed",
+    "file": "04_Summarizer_20260807T123337086759Z.json"
+  },
+  {
+    "step_index": 5,
+    "agent_name": "Verifier",
+    "timestamp": "20260807T123337456971Z",
+    "status": "Completed",
+    "file": "05_Verifier_20260807T123337456971Z.json"
+  }
+]

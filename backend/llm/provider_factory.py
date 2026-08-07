@@ -1,32 +1,23 @@
 """
-Universal Provider Factory
+Universal LLM Provider Factory
 
 Supports:
-
-Native Providers
-----------------
-- Gemini
-
-OpenAI-Compatible Providers
----------------------------
-- OpenAI
+- Gemini (Native API)
 - Groq
+- OpenAI
 - Ollama
 - Together AI
-- OpenRouter
 - DeepSeek
 - Fireworks
+- OpenRouter
+- Novita
 - Mistral
-- HuggingFace Router
-- SambaNova
-- NVIDIA NIM
-- Cerebras
-- xAI
-- Any custom OpenAI-compatible endpoint
+- Any OpenAI-Compatible Provider
 """
 
 from llm.adapters.gemini import GeminiProvider
 from llm.adapters.openai_compatible import OpenAICompatible
+<<<<<<< HEAD
 
 
 # Default endpoints for OpenAI-compatible APIs
@@ -71,67 +62,37 @@ DEFAULT_BASE_URLS = {
     "xai":
         "https://api.x.ai/v1",
 }
+=======
+>>>>>>> 7bf1b97b8889fe18300f2a7c84644d4371ac4eeb
 
 
 def get_provider(
     provider: str,
     model: str,
-    api_key: str = None,
-    base_url: str = None
+    api_key: str = "",
+    base_url: str = None,
 ):
     """
-    Returns the correct LLM adapter.
-
-    Parameters
-    ----------
-    provider : str
-    model : str
-    api_key : str
-    base_url : Optional[str]
-
-    Examples
-    --------
-    get_provider("gemini", ...)
-    get_provider("groq", ...)
-    get_provider("ollama", ...)
-    get_provider("openai", ...)
+    Returns the appropriate LLM provider instance.
     """
-
-    if not provider:
-        raise ValueError("Provider cannot be empty.")
 
     provider = provider.lower().strip()
 
-    # -----------------------------
-    # Native Provider
-    # -----------------------------
-
+    # ==========================================
+    # Native Gemini
+    # ==========================================
     if provider == "gemini":
-
         return GeminiProvider(
             model=model,
-            api_key=api_key
+            api_key=api_key,
         )
 
-    # -----------------------------
-    # OpenAI Compatible
-    # -----------------------------
-
-    if base_url is None:
-
-        base_url = DEFAULT_BASE_URLS.get(provider)
-
-    # Ollama generally doesn't require an API key
-    if provider == "ollama" and not api_key:
-        api_key = "ollama"
-
+    # ==========================================
+    # OpenAI-Compatible Providers
+    # ==========================================
     return OpenAICompatible(
-
         provider=provider,
-
         model=model,
-
         api_key=api_key,
-
-        base_url=base_url
+        base_url=base_url,
     )

@@ -1,0 +1,44 @@
+[
+  {
+    "step_index": 0,
+    "agent_name": "Planner",
+    "timestamp": "20260807T122246702670Z",
+    "status": "Planner Completed",
+    "file": "00_Planner_20260807T122246702670Z.json"
+  },
+  {
+    "step_index": 1,
+    "agent_name": "TaskSplitter",
+    "timestamp": "20260807T122247293272Z",
+    "status": "Task Splitter Completed",
+    "file": "01_TaskSplitter_20260807T122247293272Z.json"
+  },
+  {
+    "step_index": 2,
+    "agent_name": "ResearchAgent1",
+    "timestamp": "20260807T122248916092Z",
+    "status": "Task Splitter Completed",
+    "file": "02_ResearchAgent1_20260807T122248916092Z.json"
+  },
+  {
+    "step_index": 3,
+    "agent_name": "ResearchAgent2",
+    "timestamp": "20260807T122250451398Z",
+    "status": "Research Completed",
+    "file": "03_ResearchAgent2_20260807T122250451398Z.json"
+  },
+  {
+    "step_index": 4,
+    "agent_name": "Summarizer",
+    "timestamp": "20260807T122251175716Z",
+    "status": "Summarizer Completed",
+    "file": "04_Summarizer_20260807T122251175716Z.json"
+  },
+  {
+    "step_index": 5,
+    "agent_name": "Verifier",
+    "timestamp": "20260807T122251589513Z",
+    "status": "Completed",
+    "file": "05_Verifier_20260807T122251589513Z.json"
+  }
+]

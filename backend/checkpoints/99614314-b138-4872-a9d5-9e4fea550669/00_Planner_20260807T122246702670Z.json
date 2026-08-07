@@ -1,0 +1,137 @@
+{
+  "workflow_id": "99614314-b138-4872-a9d5-9e4fea550669",
+  "step_index": 0,
+  "agent_name": "Planner",
+  "timestamp": "20260807T122246702670Z",
+  "status": "Planner Completed",
+  "state": {
+    "workflow_id": "99614314-b138-4872-a9d5-9e4fea550669",
+    "goal": "Find info about Perceptron in Neural network",
+    "status": "Planner Completed",
+    "error": "",
+    "provider": "groq",
+    "model": "llama-3.3-70b-versatile",
+    "api_key": "***REDACTED***",
+    "hf_provider": "",
+    "base_url": "https://api.groq.com/openai/v1",
+    "plan": {
+      "workflow_name": "Perceptron Neural Network Info",
+      "execution": "hybrid",
+      "agents": [
+        {
+          "id": "planner",
+          "role": "Planner",
+          "description": "Plan the workflow for finding info about Perceptron in Neural network",
+          "input": "User goal",
+          "output": "Workflow plan",
+          "depends_on": [],
+          "next": [
+            "task_splitter"
+          ],
+          "parallel": false
+        },
+        {
+          "id": "task_splitter",
+          "role": "Task Splitter",
+          "description": "Split the task into independent subtasks",
+          "input": "Workflow plan",
+          "output": "Subtasks",
+          "depends_on": [
+            "planner"
+          ],
+          "next": [
+            "researcher_1",
+            "researcher_2",
+            "researcher_3"
+          ],
+          "parallel": false
+        },
+        {
+          "id": "researcher_1",
+          "role": "Researcher",
+          "description": "Research Perceptron history",
+          "input": "Subtasks",
+          "output": "Perceptron history info",
+          "depends_on": [
+            "task_splitter"
+          ],
+          "next": [
+            "summarizer"
+          ],
+          "parallel": true
+        },
+        {
+          "id": "researcher_2",
+          "role": "Researcher",
+          "description": "Research Perceptron architecture",
+          "input": "Subtasks",
+          "output": "Perceptron architecture info",
+          "depends_on": [
+            "task_splitter"
+          ],
+          "next": [
+            "summarizer"
+          ],
+          "parallel": true
+        },
+        {
+          "id": "researcher_3",
+          "role": "Researcher",
+          "description": "Research Perceptron applications",
+          "input": "Subtasks",
+          "output": "Perceptron applications info",
+          "depends_on": [
+            "task_splitter"
+          ],
+          "next": [
+            "summarizer"
+          ],
+          "parallel": true
+        },
+        {
+          "id": "summarizer",
+          "role": "Summarizer",
+          "description": "Combine research outputs",
+          "input": [
+            "Perceptron history info",
+            "Perceptron architecture info",
+            "Perceptron applications info"
+          ],
+          "output": "Combined info",
+          "depends_on": [
+            "researcher_1",
+            "researcher_2",
+            "researcher_3"
+          ],
+          "next": [
+            "verifier"
+          ],
+          "parallel": false
+        },
+        {
+          "id": "verifier",
+          "role": "Verifier",
+          "description": "Validate the final summary",
+          "input": "Combined info",
+          "output": "Validated info",
+          "depends_on": [
+            "summarizer"
+          ],
+          "next": [],
+          "parallel": false
+        }
+      ]
+    },
+    "tasks": [],
+    "research_agent_1": {},
+    "research_agent_2": {},
+    "research_results": [],
+    "summary": {},
+    "verification": {},
+    "final_output": {},
+    "current_agent": "Planner",
+    "execution_trace": [
+      "Planner"
+    ]
+  }
+}

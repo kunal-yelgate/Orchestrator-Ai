@@ -1,0 +1,120 @@
+
+[2026-08-07 17:52:42] ==============================================
+[2026-08-07 17:52:42] WORKFLOW ID: 99614314-b138-4872-a9d5-9e4fea550669
+[2026-08-07 17:52:42] ==============================================
+
+[2026-08-07 17:52:42] ==============================================
+[2026-08-07 17:52:42] Executing Workflow...
+[2026-08-07 17:52:42] ==============================================
+
+[2026-08-07 17:52:42] ========== Planner ==========
+
+[2026-08-07 17:52:46] Planner Finished Successfully
+
+[2026-08-07 17:52:46] ========== Task Splitter ==========
+
+
+[2026-08-07 17:52:47] ========== RAW TASK SPLITTER OUTPUT ==========
+
+[2026-08-07 17:52:47] {
+[2026-08-07 17:52:47]     "success": true,
+[2026-08-07 17:52:47]     "parallel": true,
+[2026-08-07 17:52:47]     "tasks": [
+[2026-08-07 17:52:47]         {
+[2026-08-07 17:52:47]             "task_id": "1",
+[2026-08-07 17:52:47]             "title": "Define Perceptron and its Role in Neural Networks",
+[2026-08-07 17:52:47]             "agent": "Researcher",
+[2026-08-07 17:52:47]             "dependencies": [],
+[2026-08-07 17:52:47]             "status": "pending"
+[2026-08-07 17:52:47]         },
+[2026-08-07 17:52:47]         {
+[2026-08-07 17:52:47]             "task_id": "2",
+[2026-08-07 17:52:47]             "title": "Investigate Perceptron Architecture and Training Algorithms",
+[2026-08-07 17:52:47]             "agent": "Researcher",
+[2026-08-07 17:52:47]             "dependencies": [],
+[2026-08-07 17:52:47]             "status": "pending"
+[2026-08-07 17:52:47]         },
+[2026-08-07 17:52:47]         {
+[2026-08-07 17:52:47]             "task_id": "3",
+[2026-08-07 17:52:47]             "title": "Gather Information on Perceptron Applications and Limitations",
+[2026-08-07 17:52:47]             "agent": "Researcher",
+[2026-08-07 17:52:47]             "dependencies": [],
+[2026-08-07 17:52:47]             "status": "pending"
+[2026-08-07 17:52:47]         }
+[2026-08-07 17:52:47]     ]
+[2026-08-07 17:52:47] }
+
+[2026-08-07 17:52:47] ========== PARSED JSON ==========
+
+[2026-08-07 17:52:47] {'success': True, 'parallel': True, 'tasks': [{'task_id': '1', 'title': 'Define Perceptron and its Role in Neural Networks', 'agent': 'Researcher', 'dependencies': [], 'status': 'pending'}, {'task_id': '2', 'title': 'Investigate Perceptron Architecture and Training Algorithms', 'agent': 'Researcher', 'dependencies': [], 'status': 'pending'}, {'task_id': '3', 'title': 'Gather Information on Perceptron Applications and Limitations', 'agent': 'Researcher', 'dependencies': [], 'status': 'pending'}]}
+
+[2026-08-07 17:52:47] Task Splitter Completed Successfully
+
+
+[2026-08-07 17:52:47] ========== Research Agent 1 ==========
+
+
+[2026-08-07 17:52:48] ========== Research Agent 2 ==========
+
+[2026-08-07 17:52:50] Research Completed Successfully
+
+[2026-08-07 17:52:50] ========== Summarizer ==========
+
+
+[2026-08-07 17:52:51] ========== RAW SUMMARIZER OUTPUT ==========
+
+[2026-08-07 17:52:51] {
+[2026-08-07 17:52:51]     "title": "Perceptron and its Role in Neural Networks",
+[2026-08-07 17:52:51]     "summary": "The Perceptron is a type of artificial neural network and supervised learning algorithm used for binary classification tasks, playing a crucial role in neural networks as a fundamental building block.",
+[2026-08-07 17:52:51]     "key_points": [
+[2026-08-07 17:52:51]         "The Perceptron is a type of feedforward neural network with a single layer of artificial neurons or nodes",
+[2026-08-07 17:52:51]         "It is trained using supervised learning algorithms for binary classification tasks",
+[2026-08-07 17:52:51]         "The Perceptron architecture is simple and effective, with applications in image and speech recognition, natural language processing, and decision-making systems",
+[2026-08-07 17:52:51]         "Training algorithms used for Perceptrons include the Perceptron learning rule, stochastic gradient descent, and batch gradient descent"
+[2026-08-07 17:52:51]     ],
+[2026-08-07 17:52:51]     "conclusion": "The Perceptron is a fundamental component of neural networks, enabling the creation of more complex and powerful neural network architectures, and its simple yet effective architecture has been widely used in various applications."
+[2026-08-07 17:52:51] }
+
+[2026-08-07 17:52:51] ========== PARSED SUMMARY ==========
+
+[2026-08-07 17:52:51] {'title': 'Perceptron and its Role in Neural Networks', 'summary': 'The Perceptron is a type of artificial neural network and supervised learning algorithm used for binary classification tasks, playing a crucial role in neural networks as a fundamental building block.', 'key_points': ['The Perceptron is a type of feedforward neural network with a single layer of artificial neurons or nodes', 'It is trained using supervised learning algorithms for binary classification tasks', 'The Perceptron architecture is simple and effective, with applications in image and speech recognition, natural language processing, and decision-making systems', 'Training algorithms used for Perceptrons include the Perceptron learning rule, stochastic gradient descent, and batch gradient descent'], 'conclusion': 'The Perceptron is a fundamental component of neural networks, enabling the creation of more complex and powerful neural network architectures, and its simple yet effective architecture has been widely used in various applications.'}
+
+[2026-08-07 17:52:51] Summarizer Finished Successfully
+
+
+[2026-08-07 17:52:51] ========== Verifier ==========
+
+
+[2026-08-07 17:52:51] ========== RAW VERIFIER OUTPUT ==========
+
+[2026-08-07 17:52:51] {
+[2026-08-07 17:52:51]     "verified": true,
+[2026-08-07 17:52:51]     "confidence": 0.95,
+[2026-08-07 17:52:51]     "issues": [],
+[2026-08-07 17:52:51]     "feedback": ""
+[2026-08-07 17:52:51] }
+
+[2026-08-07 17:52:51] ========== PARSED VERIFIER ==========
+
+[2026-08-07 17:52:51] {'verified': True, 'confidence': 0.95, 'issues': [], 'feedback': ''}
+
+[2026-08-07 17:52:51] Verifier Finished Successfully
+
+
+[2026-08-07 17:52:51] ==============================================
+[2026-08-07 17:52:51] WORKFLOW COMPLETED
+[2026-08-07 17:52:51] ==============================================
+
+[2026-08-07 17:52:51] Execution Trace
+
+[2026-08-07 17:52:51] ✓ Planner
+[2026-08-07 17:52:51] ✓ TaskSplitter
+[2026-08-07 17:52:51] ✓ ResearchAgent1
+[2026-08-07 17:52:51] ✓ ResearchAgent2
+[2026-08-07 17:52:51] ✓ Summarizer
+[2026-08-07 17:52:51] ✓ Verifier
+
+[2026-08-07 17:52:51] ==============================================
+[2026-08-07 17:52:51] FINAL OUTPUT
+[2026-08-07 17:52:51] ==============================================
+[2026-08-07 17:52:51] {'workflow_id': '99614314-b138-4872-a9d5-9e4fea550669', 'goal': 'Find info about Perceptron in Neural network', 'summary': {'title': 'Perceptron and its Role in Neural Networks', 'summary': 'The Perceptron is a type of artificial neural network and supervised learning algorithm used for binary classification tasks, playing a crucial role in neural networks as a fundamental building block.', 'key_points': ['The Perceptron is a type of feedforward neural network with a single layer of artificial neurons or nodes', 'It is trained using supervised learning algorithms for binary classification tasks', 'The Perceptron architecture is simple and effective, with applications in image and speech recognition, natural language processing, and decision-making systems', 'Training algorithms used for Perceptrons include the Perceptron learning rule, stochastic gradient descent, and batch gradient descent'], 'conclusion': 'The Perceptron is a fundamental component of neural networks, enabling the creation of more complex and powerful neural network architectures, and its simple yet effective architecture has been widely used in various applications.'}, 'verification': {'verified': True, 'confidence': 0.95, 'issues': [], 'feedback': ''}}
