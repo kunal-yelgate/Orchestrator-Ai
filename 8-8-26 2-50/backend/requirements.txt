@@ -1,5 +1,0 @@
- openai
- google-generativeai
- anthropic
- pypdf
- python-multipart
