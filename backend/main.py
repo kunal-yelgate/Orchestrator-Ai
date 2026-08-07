@@ -140,8 +140,6 @@ def create_state(goal, config):
         "execution_trace": [],
     }
 '''
-
-'''
 def create_state(goal, config):
 
     workflow_id = str(uuid.uuid4())
@@ -188,91 +186,7 @@ def create_state(goal, config):
         "current_agent": "",
         "execution_trace": [],
     }
-'''
 
-def create_state(goal, config):
-
-    workflow_id = str(uuid.uuid4())
-
-    conversation_name = generate_conversation_name(goal)
-
-    created_at = current_time()
-
-    llm = get_provider(
-        provider=config["provider"],
-        model=config["model"],
-        api_key=config["api_key"],
-        base_url=config["base_url"],
-    )
-
-    return {
-        "workflow_id": workflow_id,
-        "conversation_name": conversation_name,
-        "created_at": created_at,
-
-        "goal": goal,
-        "status": "Running",
-        "error": "",
-
-        # ===================================================
-        # LLM Configuration
-        # ===================================================
-
-        "provider": config["provider"],
-        "model": config["model"],
-        "api_key": config["api_key"],
-        "hf_provider": "",
-        "base_url": config["base_url"],
-        "llm": llm,
-
-        # ===================================================
-        # Planner
-        # ===================================================
-
-        "plan": {},
-
-        # ===================================================
-        # Task Splitter
-        # ===================================================
-
-        "tasks": [],
-
-        # ===================================================
-        # Retriever
-        # ===================================================
-
-        "retrieval_file_path": "",
-        "retrieval": {},
-        "retrieval_used": False,
-
-        # ===================================================
-        # Research Agents
-        # ===================================================
-
-        "research_agent_1": {},
-        "research_agent_2": {},
-        "research_results": [],
-
-        # ===================================================
-        # Summarizer
-        # ===================================================
-
-        "summary": {},
-
-        # ===================================================
-        # Verifier
-        # ===================================================
-
-        "verification": {},
-        "final_output": {},
-
-        # ===================================================
-        # Execution Tracking
-        # ===================================================
-
-        "current_agent": "",
-        "execution_trace": [],
-    }
 # ==========================================================
 # Rollback: rehydrate a loaded checkpoint into a runnable state
 # ==========================================================
