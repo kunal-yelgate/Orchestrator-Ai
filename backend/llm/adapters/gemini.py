@@ -4,12 +4,14 @@ import time
 
 class GeminiProvider:
 
-
     def __init__(
-            self,
-            model,
-            api_key
+        self,
+        model,
+        api_key
     ):
+
+        if not api_key:
+            raise ValueError("Gemini API key is required.")
 
         self.client = genai.Client(
             api_key=api_key
@@ -17,15 +19,21 @@ class GeminiProvider:
 
         self.model = model
 
-
-
     def generate(
-            self,
-            prompt,
-            temperature=0.2,
-            retries=3
+        self,
+        system_prompt,
+        user_prompt,
+        temperature=0.2,
+        retries=3
     ):
 
+        prompt = f"""
+{system_prompt}
+
+----------------------------------------
+
+{user_prompt}
+"""
 
         for attempt in range(retries):
 
@@ -35,12 +43,15 @@ class GeminiProvider:
 
                     model=self.model,
 
-                    contents=prompt
+                    contents=prompt,
+
+                    config={
+                        "temperature": temperature
+                    }
 
                 )
 
                 return response.text
-
 
             except Exception as e:
 
@@ -49,7 +60,7 @@ class GeminiProvider:
                     wait = 2 ** attempt
 
                     print(
-                        f"Gemini busy. Retrying after {wait}s..."
+                        f"Gemini busy. Retrying in {wait} seconds..."
                     )
 
                     time.sleep(wait)
@@ -57,8 +68,6 @@ class GeminiProvider:
                 else:
                     raise e
 
-
-
         raise Exception(
-            "Gemini unavailable after retries"
+            "Gemini unavailable after retries."
         )

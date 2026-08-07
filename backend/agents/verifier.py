@@ -18,7 +18,14 @@ You are the Verifier Agent.
 
 Your job is to verify the quality of the generated summary.
 
-Return ONLY JSON.
+IMPORTANT RULES
+
+1. Return ONLY valid JSON.
+2. Do NOT use markdown.
+3. Do NOT wrap JSON inside ```json.
+4. Do NOT explain anything.
+
+Return EXACTLY:
 
 {
     "verified": true,
@@ -32,6 +39,8 @@ Return ONLY JSON.
 Verify the following summary.
 
 {summary}
+
+Return ONLY valid JSON.
 """
 
         return system_prompt, user_prompt
@@ -50,24 +59,54 @@ Verify the following summary.
 
     def parse_response(self, response):
 
+        if not response:
+            raise ValueError("Verifier returned an empty response.")
+
         try:
             return json.loads(response)
 
-        except Exception:
+        except json.JSONDecodeError:
 
-            return {
-                "verified": False,
-                "confidence": 0.0,
-                "issues": [
-                    "Verifier returned invalid JSON."
-                ],
-                "feedback": response
-            }
+            cleaned = response.strip()
+
+            if cleaned.startswith("```json"):
+                cleaned = cleaned[7:]
+
+            if cleaned.startswith("```"):
+                cleaned = cleaned[3:]
+
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+
+            cleaned = cleaned.strip()
+
+            try:
+                return json.loads(cleaned)
+
+            except Exception:
+
+                start = cleaned.find("{")
+                end = cleaned.rfind("}")
+
+                if start != -1 and end != -1:
+
+                    return json.loads(
+                        cleaned[start:end + 1]
+                    )
+
+                return {
+                    "verified": False,
+                    "confidence": 0.0,
+                    "issues": [
+                        "Verifier returned invalid JSON."
+                    ],
+                    "feedback": cleaned
+                }
 
 
-# ===========================================================
+# ==========================================================
 # LangGraph Node
-# ===========================================================
+# ==========================================================
 
 def verifier_node(state: WorkflowState):
 
@@ -75,19 +114,20 @@ def verifier_node(state: WorkflowState):
 
     state["current_agent"] = "Verifier"
 
+    state.setdefault("execution_trace", [])
     state["execution_trace"].append("Verifier")
+
+    if state.get("error"):
+        return state
 
     try:
 
         summary = state.get("summary", {})
 
         if not summary:
-
             raise Exception("Summary not found.")
 
-        llm = state["llm"]
-
-        verifier = Verifier(llm)
+        verifier = Verifier(state["llm"])
 
         system_prompt, user_prompt = verifier.build_prompt(
             summary
@@ -98,26 +138,35 @@ def verifier_node(state: WorkflowState):
             user_prompt,
         )
 
+        print("\n========== RAW VERIFIER OUTPUT ==========\n")
+        print(response)
+
         verification = verifier.parse_response(response)
+
+        print("\n========== PARSED VERIFIER ==========\n")
+        print(verification)
 
         state["verification"] = verification
 
         state["final_output"] = {
+
             "workflow_id": state["workflow_id"],
+
             "goal": state["goal"],
+
             "summary": summary,
+
             "verification": verification
+
         }
 
-        if verification["verified"]:
+        state["status"] = (
+            "Completed"
+            if verification.get("verified")
+            else "Verification Failed"
+        )
 
-            state["status"] = "Completed"
-
-        else:
-
-            state["status"] = "Verification Failed"
-
-        print("Verifier Finished Successfully")
+        print("\nVerifier Finished Successfully\n")
 
     except Exception as e:
 
@@ -125,14 +174,15 @@ def verifier_node(state: WorkflowState):
 
         state["error"] = str(e)
 
+        print("\nVerifier Error:\n")
         print(e)
 
     return state
 
 
-# ===========================================================
+# ==========================================================
 # Local Testing
-# ===========================================================
+# ==========================================================
 
 if __name__ == "__main__":
 
@@ -142,17 +192,17 @@ if __name__ == "__main__":
             self,
             system_prompt,
             user_prompt,
-            temperature,
+            temperature=0.1,
         ):
 
             return """
-            {
-                "verified": true,
-                "confidence": 0.98,
-                "issues": [],
-                "feedback": "Summary is complete and accurate."
-            }
-            """
+{
+    "verified": true,
+    "confidence": 0.98,
+    "issues": [],
+    "feedback": "Summary is complete and accurate."
+}
+"""
 
     state = {
 
@@ -161,13 +211,21 @@ if __name__ == "__main__":
         "goal": "Research Artificial Intelligence",
 
         "summary": {
+
             "title": "Artificial Intelligence",
+
             "summary": "AI is transforming industries.",
+
             "key_points": [
+
                 "Healthcare",
+
                 "Finance"
+
             ],
+
             "conclusion": "AI has a promising future."
+
         },
 
         "llm": DummyLLM(),
@@ -187,4 +245,4 @@ if __name__ == "__main__":
 
     result = verifier_node(state)
 
-    print(result)
+    print(result["final_output"])

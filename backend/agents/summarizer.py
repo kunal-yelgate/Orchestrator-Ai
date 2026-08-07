@@ -18,7 +18,14 @@ You are the Summarizer Agent.
 
 Combine multiple research outputs into one final report.
 
-Return ONLY JSON.
+IMPORTANT RULES
+
+1. Return ONLY valid JSON.
+2. Do NOT use markdown.
+3. Do NOT wrap JSON inside ```json.
+4. Do NOT explain anything.
+
+Return EXACTLY:
 
 {
     "title":"",
@@ -45,6 +52,8 @@ Return ONLY JSON.
 Combine the following research into one final report.
 
 {content}
+
+Return ONLY valid JSON.
 """
 
         return system_prompt, user_prompt
@@ -63,23 +72,57 @@ Combine the following research into one final report.
 
     def parse_response(self, response):
 
-        try:
+        if not response:
+            raise ValueError("Summarizer returned an empty response.")
 
+        try:
             return json.loads(response)
 
-        except Exception:
+        except json.JSONDecodeError:
 
-            return {
-                "title": "Summary",
-                "summary": response,
-                "key_points": [],
-                "conclusion": ""
-            }
+            cleaned = response.strip()
+
+            if cleaned.startswith("```json"):
+                cleaned = cleaned[7:]
+
+            if cleaned.startswith("```"):
+                cleaned = cleaned[3:]
+
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+
+            cleaned = cleaned.strip()
+
+            try:
+                return json.loads(cleaned)
+
+            except Exception:
+
+                start = cleaned.find("{")
+                end = cleaned.rfind("}")
+
+                if start != -1 and end != -1:
+
+                    return json.loads(
+                        cleaned[start:end + 1]
+                    )
+
+                return {
+
+                    "title": "Summary",
+
+                    "summary": cleaned,
+
+                    "key_points": [],
+
+                    "conclusion": ""
+
+                }
 
 
-# ===========================================================
+# ==========================================================
 # LangGraph Node
-# ===========================================================
+# ==========================================================
 
 def summarizer_node(state: WorkflowState):
 
@@ -87,19 +130,20 @@ def summarizer_node(state: WorkflowState):
 
     state["current_agent"] = "Summarizer"
 
+    state.setdefault("execution_trace", [])
     state["execution_trace"].append("Summarizer")
+
+    if state.get("error"):
+        return state
 
     try:
 
         research_results = state.get("research_results", [])
 
         if not research_results:
-
             raise Exception("No research results available.")
 
-        llm = state["llm"]
-
-        summarizer = Summarizer(llm)
+        summarizer = Summarizer(state["llm"])
 
         system_prompt, user_prompt = summarizer.build_prompt(
             research_results
@@ -110,28 +154,35 @@ def summarizer_node(state: WorkflowState):
             user_prompt,
         )
 
+        print("\n========== RAW SUMMARIZER OUTPUT ==========\n")
+        print(response)
+
         summary = summarizer.parse_response(response)
+
+        print("\n========== PARSED SUMMARY ==========\n")
+        print(summary)
 
         state["summary"] = summary
 
         state["status"] = "Summarizer Completed"
 
-        print("Summarizer Finished Successfully")
+        print("\nSummarizer Finished Successfully\n")
 
     except Exception as e:
 
-        state["status"] = "Summarizer Failed"
+        state["status"] = "failed"
 
         state["error"] = str(e)
 
+        print("\nSummarizer Error:\n")
         print(e)
 
     return state
 
 
-# ===========================================================
+# ==========================================================
 # Local Testing
-# ===========================================================
+# ==========================================================
 
 if __name__ == "__main__":
 
@@ -141,21 +192,21 @@ if __name__ == "__main__":
             self,
             system_prompt,
             user_prompt,
-            temperature,
+            temperature=0.2,
         ):
 
             return """
-            {
-                "title":"Artificial Intelligence",
-                "summary":"AI is transforming multiple industries.",
-                "key_points":[
-                    "Healthcare",
-                    "Finance",
-                    "Education"
-                ],
-                "conclusion":"AI will continue to evolve."
-            }
-            """
+{
+    "title":"Artificial Intelligence",
+    "summary":"AI is transforming multiple industries.",
+    "key_points":[
+        "Healthcare",
+        "Finance",
+        "Education"
+    ],
+    "conclusion":"AI will continue to evolve."
+}
+"""
 
     state = {
 
@@ -165,20 +216,16 @@ if __name__ == "__main__":
 
             {
                 "title": "History",
-
                 "result": {
                     "summary": "History of AI"
                 }
-
             },
 
             {
                 "title": "Applications",
-
                 "result": {
                     "summary": "Applications of AI"
                 }
-
             }
 
         ],
@@ -196,4 +243,4 @@ if __name__ == "__main__":
 
     result = summarizer_node(state)
 
-    print(result)
+    print(result["summary"])

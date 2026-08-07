@@ -1,19 +1,18 @@
 """
-OpenAI Compatible LLM Adapter
+Universal OpenAI-Compatible LLM Adapter
 
-Supports any provider exposing OpenAI-compatible
-/chat/completions endpoint.
+Supports:
 
-Examples:
 - OpenAI
 - Groq
-- DeepSeek
-- OpenRouter
+- Ollama
 - Together AI
+- DeepSeek
 - Fireworks
-- Mistral API
-- Ollama local models
-- Any custom OpenAI-compatible endpoint
+- OpenRouter
+- Novita
+- Mistral
+- Any OpenAI-Compatible Endpoint
 """
 
 from openai import OpenAI
@@ -21,43 +20,37 @@ from openai import OpenAI
 
 class OpenAICompatible:
 
-
     def __init__(
-            self,
-            provider: str,
-            model: str,
-            api_key: str,
-            base_url: str = None
+        self,
+        provider: str,
+        model: str,
+        api_key: str,
+        base_url: str = None
     ):
 
         self.provider = provider
         self.model = model
 
-
-        if not api_key:
+        if provider != "ollama" and not api_key:
             raise ValueError(
                 f"API key missing for provider: {provider}"
             )
 
-
         self.client = OpenAI(
-
             api_key=api_key,
-
-            # Required for providers other than OpenAI
             base_url=base_url
         )
 
-
     def generate(
-            self,
-            prompt: str,
-            temperature: float = 0.2
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.2,
     ) -> str:
         """
-        Generate response from any OpenAI-compatible provider.
+        Universal generate function for every
+        OpenAI-compatible provider.
         """
-
 
         try:
 
@@ -71,27 +64,24 @@ class OpenAICompatible:
 
                     {
                         "role": "system",
-                        "content":
-                        "You are a helpful AI assistant."
+                        "content": system_prompt
                     },
 
                     {
                         "role": "user",
-                        "content": prompt
+                        "content": user_prompt
                     }
 
                 ]
+
             )
 
-
             return response.choices[0].message.content
-
-
 
         except Exception as e:
 
             raise RuntimeError(
 
-                f"{self.provider} generation failed: {str(e)}"
+                f"{self.provider} generation failed:\n{str(e)}"
 
             )

@@ -1,534 +1,83 @@
-"""
-planner.py
-
-Planner Agent for Agentic AI Orchestrator.
-
-Input:
-    User goal + provider + model + api_key (all via CLI prompt)
-
-Output:
-    Typed workflow graph JSON
-
-Supported providers:
-    - gemini      (Google Generative AI)
-    - openai      (OpenAI-compatible chat completions)
-    - huggingface (HF InferenceClient — routes to novita, together, etc.)
-
-Only the SDK for the provider you actually pick needs to be installed:
-    pip install google-generativeai   # for gemini
-    pip install openai                # for openai
-    pip install huggingface_hub       # for huggingface
-"""
-
-
-import os
 import json
-import re
-from pathlib import Path
 
-from dotenv import load_dotenv
-
-
-# =======================================================
-# Load Environment Variables
-# =======================================================
-
-env_path = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(env_path)
+from graph.state import WorkflowState
+from prompts.planner_prompt import (
+    PLANNER_SYSTEM_PROMPT,
+)
 
 
-# =======================================================
-# Planner System Prompt
-# =======================================================
+class Planner:
+    """
+    Planner Agent
 
-PLANNER_SYSTEM_PROMPT = """
+    Converts a user goal into a workflow graph.
+    """
 
-You are the Planner Agent of an Agentic AI Orchestrator.
+    def __init__(self, llm_provider):
 
-Your responsibility is to convert a user goal into a
-typed executable multi-agent workflow graph.
+        self.llm = llm_provider
 
+    def build_prompt(self, goal: str):
+
+        system_prompt = PLANNER_SYSTEM_PROMPT
+
+        user_prompt = f"""
+Create an execution workflow for the following goal.
+
+Goal:
+
+{goal}
 
 Return ONLY valid JSON.
-
-Do not add markdown.
-Do not add explanations.
-
-
-==================================================
-OUTPUT SCHEMA
-==================================================
-
-
-{
-  "workflow_name": "",
-  "execution": "sequential | parallel | hybrid",
-
-  "agents": [
-
-    {
-      "id": "",
-      "role": "",
-      "description": "",
-
-      "input": "",
-      "output": "",
-
-      "depends_on": [],
-
-      "next": [],
-
-      "parallel": false
-    }
-
-  ]
-}
-
-
-
-==================================================
-AVAILABLE AGENT TYPES
-==================================================
-
-
-Only use these roles:
-
-
-1. Planner
-
-2. Task Splitter
-
-3. Researcher
-
-4. Summarizer
-
-5. Verifier
-
-
-
-==================================================
-WORKFLOW DESIGN RULES
-==================================================
-
-
-1.
-Planner must always be the first node.
-
-
-2.
-Planner creates a high-level execution strategy.
-
-
-3.
-Planner must connect to Task Splitter.
-
-
-4.
-Task Splitter decomposes the goal into smaller tasks.
-
-
-5.
-For research or analysis tasks:
-
-Create multiple specialized Researcher agents.
-
-
-Example:
-
-
-researcher_1
-- Research history
-
-
-researcher_2
-- Research technical details
-
-
-researcher_3
-- Research applications
-
-
-
-6.
-Researcher agents must execute in parallel.
-
-
-7.
-All Researcher outputs must go to Summarizer.
-
-
-8.
-Summarizer combines all outputs.
-
-
-9.
-Verifier must always be the final node.
-
-
-
-==================================================
-GRAPH CONSTRAINTS
-==================================================
-
-
-1.
-Every agent must appear EXACTLY ONCE.
-
-
-2.
-IDs must be unique.
-
-
-3.
-"next" contains ONLY agent IDs.
-
-
-Correct:
-
-"next":[
- "researcher_1",
- "researcher_2"
-]
-
-
-Incorrect:
-
-"next":[
- {
-   "id":"researcher_1"
- }
-]
-
-
-
-4.
-The graph must be acyclic.
-
-
-5.
-Every dependency must reference an existing agent.
-
-
-6.
-No disconnected nodes.
-
-
-7.
-Every workflow must have:
-
-Planner
-
-Task Splitter
-
-At least one Researcher
-
-Summarizer
-
-Verifier
-
-
-
-8.
-For complex research tasks create at least THREE Researcher agents.
-
-
-
-9.
-Researcher nodes:
-
-parallel=true
-
-
-
-All other nodes:
-
-parallel=false
-
-
-
-10.
-Return ONLY JSON.
-
 """
 
+        return system_prompt, user_prompt
 
-# =======================================================
-# Supported top-level providers
-# =======================================================
+    def call_llm(
 
-SUPPORTED_PROVIDERS = ["gemini", "openai", "huggingface"]
+        self,
 
-# Sub-providers only relevant when top-level provider == "huggingface"
-HF_ROUTED_PROVIDERS = [
-    "novita",
-    "together",
-    "fireworks-ai",
-    "sambanova",
-    "hyperbolic",
-    "nebius",
-    "cerebras",
-    "hf-inference",
-]
+        system_prompt,
 
+        user_prompt,
 
-# =======================================================
-# Provider call functions
-# =======================================================
+    ):
 
-def call_gemini(goal: str, model: str, api_key: str) -> str:
-    """Calls Google Gemini via google-generativeai SDK."""
-    try:
-        import google.generativeai as genai
-    except ImportError:
-        raise RuntimeError(
-            "google-generativeai not installed. Run: pip install google-generativeai"
+        response = self.llm.generate(
+
+            system_prompt=system_prompt,
+
+            user_prompt=user_prompt,
+
+            temperature=0.2,
+
         )
 
-    if not api_key:
-        raise RuntimeError("Gemini requires an api_key")
+        return response
 
-    genai.configure(api_key=api_key)
+    def parse_response(self, response):
 
-    gemini_model = genai.GenerativeModel(
-        model_name=model,
-        system_instruction=PLANNER_SYSTEM_PROMPT
-    )
+        try:
 
-    response = gemini_model.generate_content(
-        goal,
-        generation_config={"temperature": 0.2}
-    )
+            return json.loads(response)
 
-    return response.text
+        except Exception:
 
+            start = response.find("{")
 
-def call_openai(goal: str, model: str, api_key: str) -> str:
-    """Calls OpenAI (or any OpenAI-compatible) chat completions endpoint."""
-    try:
-        from openai import OpenAI
-    except ImportError:
-        raise RuntimeError(
-            "openai package not installed. Run: pip install openai"
-        )
+            end = response.rfind("}")
 
-    if not api_key:
-        raise RuntimeError("OpenAI requires an api_key")
+            if start == -1 or end == -1:
 
-    client = OpenAI(api_key=api_key)
+                raise ValueError("Planner returned invalid JSON.")
 
-    response = client.chat.completions.create(
-        model=model,
-        temperature=0.2,
-        messages=[
-            {"role": "system", "content": PLANNER_SYSTEM_PROMPT},
-            {"role": "user", "content": goal},
-        ],
-    )
+            return json.loads(response[start:end + 1])
 
-    return response.choices[0].message.content
-
-
-def call_huggingface(goal: str, model: str, api_key: str, hf_provider: str) -> str:
-    """Calls a model via HuggingFace InferenceClient, routed through hf_provider
-    (e.g. novita, together, fireworks-ai)."""
-    try:
-        from huggingface_hub import InferenceClient
-    except ImportError:
-        raise RuntimeError(
-            "huggingface_hub not installed. Run: pip install huggingface_hub"
-        )
-
-    token = api_key or os.getenv("HF_TOKEN")
-
-    if not token:
-        raise RuntimeError(
-            "No API key provided and HF_TOKEN missing in backend/.env"
-        )
-
-    client = InferenceClient(provider=hf_provider, api_key=token)
-
-    response = client.chat.completions.create(
-        model=model,
-        temperature=0.2,
-        messages=[
-            {"role": "system", "content": PLANNER_SYSTEM_PROMPT},
-            {"role": "user", "content": goal},
-        ],
-    )
-
-    return response.choices[0].message.content
-
-
-# =======================================================
-# JSON Parser
-# =======================================================
-
-def extract_json(text):
-    """
-    Extract JSON from LLM response.
-    Handles ```json blocks.
-    """
-
-    text = text.strip()
-
-    text = re.sub(r"```json", "", text, flags=re.IGNORECASE)
-    text = re.sub(r"```", "", text)
-    text = text.strip()
-
-    match = re.search(r"\{.*\}", text, flags=re.DOTALL)
-
-    if not match:
-        raise ValueError(
-            "No JSON found in model output:\n" + text
-        )
-
-    return json.loads(match.group())
-
-
-# =======================================================
-# Planner Execution — dispatches to the right provider
-# =======================================================
-
-def run_planner(goal: str, provider: str, model: str, api_key: str = None, hf_provider: str = None):
-    """
-    Runs the planner agent against the chosen provider + model.
-
-    Args:
-        goal: the user's natural-language objective
-        provider: "gemini" | "openai" | "huggingface"
-        model: model name/id specific to that provider
-        api_key: API key for the provider (falls back to .env for huggingface only)
-        hf_provider: required only when provider == "huggingface"
-                     (e.g. "novita", "together")
-    """
-
-    provider = provider.lower().strip()
-
-    if provider == "gemini":
-        output = call_gemini(goal, model, api_key)
-
-    elif provider == "openai":
-        output = call_openai(goal, model, api_key)
-
-    elif provider == "huggingface":
-        if not hf_provider:
-            raise RuntimeError(
-                "huggingface provider requires hf_provider (e.g. 'novita', 'together')"
-            )
-        output = call_huggingface(goal, model, api_key, hf_provider)
-
-    else:
-        raise RuntimeError(
-            f"Unsupported provider '{provider}'. Choose from: {', '.join(SUPPORTED_PROVIDERS)}"
-        )
-
-    workflow = extract_json(output)
-
-    return workflow
-
-
-# =======================================================
-# Simple Validation
-# =======================================================
-
-def validate_workflow(workflow):
-
-    agents = workflow.get("agents", [])
-
-    ids = [agent["id"] for agent in agents]
-
-    if len(ids) != len(set(ids)):
-        raise ValueError("Duplicate agent IDs detected")
-
-    required = [
-        "planner",
-        "task_splitter",
-        "summarizer",
-        "verifier"
-    ]
-
-    for r in required:
-        if r not in ids:
-            raise ValueError(f"Missing {r}")
-
-    for agent in agents:
-        for nxt in agent.get("next", []):
-            if nxt not in ids:
-                raise ValueError(f"Invalid next reference {nxt}")
-
-    return True
-
-
-# =======================================================
-# CLI Testing
-# =======================================================
-
-if __name__ == "__main__":
-
-    goal = input("Enter your goal: ").strip()
-
-    if not goal:
-        print("Goal cannot be empty")
-        exit()
-
-    print(f"\nSupported providers: {', '.join(SUPPORTED_PROVIDERS)}")
-    provider = input("Enter provider (gemini / openai / huggingface): ").strip().lower()
-
-    if provider not in SUPPORTED_PROVIDERS:
-        print(f"Unsupported provider '{provider}'. Choose from: {', '.join(SUPPORTED_PROVIDERS)}")
-        exit()
-
-    hf_provider = None
-    if provider == "huggingface":
-        print(f"HF-routed providers: {', '.join(HF_ROUTED_PROVIDERS)}")
-        hf_provider = input("Enter HF routed provider (e.g. novita): ").strip().lower()
-        if not hf_provider:
-            print("hf_provider cannot be empty for huggingface")
-            exit()
-
-    model = input("Enter model name (e.g. gemini-2.5-flash / gpt-4o / meta-llama/Llama-3.1-8B-Instruct): ").strip()
-
-    if not model:
-        print("Model cannot be empty")
-        exit()
-
-    api_key = input(
-        "Enter API key (leave blank to use HF_TOKEN from .env — huggingface only): "
-    ).strip()
-
-    api_key = api_key or None
-
-    try:
-        workflow = run_planner(
-            goal=goal,
-            provider=provider,
-            model=model,
-            api_key=api_key,
-            hf_provider=hf_provider
-        )
-
-        validate_workflow(workflow)
-
-        print("\nGenerated Workflow\n")
-        print(json.dumps(workflow, indent=4))
-
-    except Exception as e:
-        print("\nError:", e)
-
-    # =======================================================
-# LangGraph Node Wrapper
-# =======================================================
-
-from graph.state import WorkflowState
-
-
-from graph.state import WorkflowState
-
+    # ==========================================================
+# LangGraph Node
+# ==========================================================
 
 def planner_node(state: WorkflowState):
-    """
-    LangGraph Planner Node
-    """
 
     print("\n========== Planner ==========\n")
 
@@ -541,15 +90,20 @@ def planner_node(state: WorkflowState):
 
     try:
 
-        workflow = run_planner(
-            goal=state["goal"],
-            provider=state["provider"],
-            model=state["model"],
-            api_key=state["api_key"],
-            hf_provider=state.get("hf_provider")
+        goal = state["goal"]
+
+        llm = state["llm"]
+
+        planner = Planner(llm)
+
+        system_prompt, user_prompt = planner.build_prompt(goal)
+
+        response = planner.call_llm(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
         )
 
-        validate_workflow(workflow)
+        workflow = planner.parse_response(response)
 
         state["plan"] = workflow
 
@@ -566,3 +120,110 @@ def planner_node(state: WorkflowState):
         print(e)
 
     return state
+
+    # ==========================================================
+# Local Testing
+# ==========================================================
+
+if __name__ == "__main__":
+
+    class DummyLLM:
+
+        def generate(
+            self,
+            system_prompt,
+            user_prompt,
+            temperature=0.2,
+        ):
+
+            return """
+            {
+                "workflow_name":"Research Workflow",
+                "execution":"parallel",
+                "agents":[
+                    {
+                        "id":"planner",
+                        "role":"Planner",
+                        "description":"Create workflow",
+                        "input":"User Goal",
+                        "output":"Workflow Plan",
+                        "depends_on":[],
+                        "next":["task_splitter"],
+                        "parallel":false
+                    },
+                    {
+                        "id":"task_splitter",
+                        "role":"Task Splitter",
+                        "description":"Split work",
+                        "input":"Workflow",
+                        "output":"Tasks",
+                        "depends_on":["planner"],
+                        "next":["researcher_1","researcher_2"],
+                        "parallel":false
+                    },
+                    {
+                        "id":"researcher_1",
+                        "role":"Researcher",
+                        "description":"Research Topic 1",
+                        "input":"Task",
+                        "output":"Research",
+                        "depends_on":["task_splitter"],
+                        "next":["summarizer"],
+                        "parallel":true
+                    },
+                    {
+                        "id":"researcher_2",
+                        "role":"Researcher",
+                        "description":"Research Topic 2",
+                        "input":"Task",
+                        "output":"Research",
+                        "depends_on":["task_splitter"],
+                        "next":["summarizer"],
+                        "parallel":true
+                    },
+                    {
+                        "id":"summarizer",
+                        "role":"Summarizer",
+                        "description":"Combine Results",
+                        "input":"Research",
+                        "output":"Summary",
+                        "depends_on":["researcher_1","researcher_2"],
+                        "next":["verifier"],
+                        "parallel":false
+                    },
+                    {
+                        "id":"verifier",
+                        "role":"Verifier",
+                        "description":"Validate Output",
+                        "input":"Summary",
+                        "output":"Verified Report",
+                        "depends_on":["summarizer"],
+                        "next":[],
+                        "parallel":false
+                    }
+                ]
+            }
+            """
+
+    state = {
+
+        "goal": "Research Artificial Intelligence",
+
+        "llm": DummyLLM(),
+
+        "plan": {},
+
+        "current_agent": "",
+
+        "execution_trace": [],
+
+        "status": "",
+
+        "error": ""
+    }
+
+    result = planner_node(state)
+
+    print("\n========== Planner Output ==========\n")
+
+    print(json.dumps(result["plan"], indent=4))
