@@ -13,7 +13,6 @@ from api.schemas import (
 from graph.builder import build_workflow
 from llm.provider_factory import get_provider
 
-
 router = APIRouter()
 
 
@@ -23,10 +22,9 @@ router = APIRouter()
 
 @router.get("/")
 def home():
-
     return {
         "message": "Agentic AI Orchestrator API",
-        "version": "1.0"
+        "version": "2.0"
     }
 
 
@@ -36,14 +34,13 @@ def home():
 
 @router.get("/health")
 def health():
-
     return {
         "status": "healthy"
     }
 
 
 # ==========================================================
-# Available Providers
+# Providers
 # ==========================================================
 
 @router.get("/providers")
@@ -59,7 +56,7 @@ def providers():
 
 
 # ==========================================================
-# Create Workflow State
+# Create Initial Workflow State
 # ==========================================================
 
 def create_state(goal: str, provider: str):
@@ -98,27 +95,59 @@ def create_state(goal: str, provider: str):
 
     return {
 
+        # ==================================================
+        # Workflow Info
+        # ==================================================
+
         "workflow_id": str(uuid.uuid4()),
+        "conversation_name": "",
+        "created_at": "",
 
         "goal": goal,
 
         "status": "",
-
         "error": "",
 
+        # ==================================================
+        # LLM
+        # ==================================================
+
         "provider": provider,
+        "model": "",
+        "api_key": "",
+        "hf_provider": "",
 
         "llm": llm,
 
+        # ==================================================
+        # Planner
+        # ==================================================
+
         "plan": {},
+
+        "workflow_name": "",
+
+        "execution_mode": "",
+
+        "reasoning": "",
+
+        # ==================================================
+        # Tasks
+        # ==================================================
 
         "tasks": [],
 
-        "research_agent_1": {},
+        "current_task": {},
 
-        "research_agent_2": {},
+        # ==================================================
+        # Research
+        # ==================================================
 
         "research_results": [],
+
+        # ==================================================
+        # Final Output
+        # ==================================================
 
         "summary": {},
 
@@ -126,19 +155,52 @@ def create_state(goal: str, provider: str):
 
         "final_output": {},
 
+        # ==================================================
+        # Execution
+        # ==================================================
+
+        "current_agent": "",
+
         "execution_trace": [],
 
-        "current_agent": ""
+        "execution_time": 0.0,
+
+        "active_nodes": [],
+
+        "completed_nodes": [],
+
+        "failed_nodes": [],
+
+        # ==================================================
+        # Cost Tracking
+        # ==================================================
+
+        "total_tokens": 0,
+
+        "prompt_tokens": 0,
+
+        "completion_tokens": 0,
+
+        "estimated_cost": 0.0,
+
+        # ==================================================
+        # Approval
+        # ==================================================
+
+        "approved": False,
+
+        "workflow_version": "1.0"
+
     }
 
 
 # ==========================================================
-# Main Orchestration Endpoint
+# Main Endpoint
 # ==========================================================
 
 @router.post(
     "/orchestrate",
-    response_model=OrchestrateResponse
+    response_model=OrchestrateResponse,
 )
 def orchestrate(request: OrchestrateRequest):
 
@@ -148,7 +210,7 @@ def orchestrate(request: OrchestrateRequest):
 
         state = create_state(
             request.goal,
-            request.provider
+            request.provider,
         )
 
         result = workflow.invoke(state)
@@ -157,11 +219,20 @@ def orchestrate(request: OrchestrateRequest):
 
             workflow_id=result["workflow_id"],
 
-            execution_trace=result["execution_trace"],
+            execution_trace=result.get(
+                "execution_trace",
+                [],
+            ),
 
-            summary=result["summary"],
+            summary=result.get(
+                "summary",
+                {},
+            ),
 
-            verification=result["verification"]
+            verification=result.get(
+                "verification",
+                {},
+            ),
 
         )
 
@@ -169,5 +240,5 @@ def orchestrate(request: OrchestrateRequest):
 
         raise HTTPException(
             status_code=500,
-            detail=str(e)
+            detail=str(e),
         )

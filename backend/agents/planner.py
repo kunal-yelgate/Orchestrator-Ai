@@ -73,7 +73,8 @@ Return ONLY valid JSON.
 
             return json.loads(response[start:end + 1])
 
-    # ==========================================================
+
+# ==========================================================
 # LangGraph Node
 # ==========================================================
 
@@ -105,9 +106,64 @@ def planner_node(state: WorkflowState):
 
         workflow = planner.parse_response(response)
 
+        # Store the complete planner output
         state["plan"] = workflow
 
+        # =====================================================
+        # Extract Planner Metadata
+        # =====================================================
+
+        state["workflow_name"] = workflow.get(
+            "workflow_name",
+            "Untitled Workflow"
+        )
+
+        state["execution_mode"] = workflow.get(
+            "execution",
+            "parallel"
+        )
+
+        state["reasoning"] = workflow.get(
+            "reasoning",
+            ""
+        )
+
+        # =====================================================
+        # Dynamic Tasks
+        # =====================================================
+
+        state["tasks"] = workflow.get(
+            "tasks",
+            []
+        )
+
+        state["research_results"] = []
+
+        state["active_nodes"] = []
+
+        state["completed_nodes"] = []
+
+        state["failed_nodes"] = []
+
         state["status"] = "Planner Completed"
+
+        print("\n========== Workflow Plan ==========\n")
+
+        print(f"Workflow : {state['workflow_name']}")
+        print(f"Execution: {state['execution_mode']}")
+        print(f"Reason   : {state['reasoning']}")
+        print(f"Tasks    : {len(state['tasks'])}")
+
+        print()
+
+        for index, task in enumerate(state["tasks"], start=1):
+
+            print(
+                f"{index}. "
+                f"{task['title']} "
+                f"[{task['specialization']}] "
+                f"Priority: {task['priority']}"
+            )
 
         print("Planner Finished Successfully")
 
@@ -121,7 +177,8 @@ def planner_node(state: WorkflowState):
 
     return state
 
-    # ==========================================================
+
+# ==========================================================
 # Local Testing
 # ==========================================================
 
@@ -138,68 +195,30 @@ if __name__ == "__main__":
 
             return """
             {
-                "workflow_name":"Research Workflow",
-                "execution":"parallel",
-                "agents":[
+                "workflow_name": "Research Workflow",
+                "execution": "parallel",
+                "reasoning": "The goal can be divided into independent research tasks.",
+                "tasks": [
                     {
-                        "id":"planner",
-                        "role":"Planner",
-                        "description":"Create workflow",
-                        "input":"User Goal",
-                        "output":"Workflow Plan",
-                        "depends_on":[],
-                        "next":["task_splitter"],
-                        "parallel":false
+                        "id": "task_1",
+                        "title": "History",
+                        "description": "Research historical background.",
+                        "specialization": "History",
+                        "priority": "high"
                     },
                     {
-                        "id":"task_splitter",
-                        "role":"Task Splitter",
-                        "description":"Split work",
-                        "input":"Workflow",
-                        "output":"Tasks",
-                        "depends_on":["planner"],
-                        "next":["researcher_1","researcher_2"],
-                        "parallel":false
+                        "id": "task_2",
+                        "title": "Architecture",
+                        "description": "Study system architecture.",
+                        "specialization": "Architecture",
+                        "priority": "high"
                     },
                     {
-                        "id":"researcher_1",
-                        "role":"Researcher",
-                        "description":"Research Topic 1",
-                        "input":"Task",
-                        "output":"Research",
-                        "depends_on":["task_splitter"],
-                        "next":["summarizer"],
-                        "parallel":true
-                    },
-                    {
-                        "id":"researcher_2",
-                        "role":"Researcher",
-                        "description":"Research Topic 2",
-                        "input":"Task",
-                        "output":"Research",
-                        "depends_on":["task_splitter"],
-                        "next":["summarizer"],
-                        "parallel":true
-                    },
-                    {
-                        "id":"summarizer",
-                        "role":"Summarizer",
-                        "description":"Combine Results",
-                        "input":"Research",
-                        "output":"Summary",
-                        "depends_on":["researcher_1","researcher_2"],
-                        "next":["verifier"],
-                        "parallel":false
-                    },
-                    {
-                        "id":"verifier",
-                        "role":"Verifier",
-                        "description":"Validate Output",
-                        "input":"Summary",
-                        "output":"Verified Report",
-                        "depends_on":["summarizer"],
-                        "next":[],
-                        "parallel":false
+                        "id": "task_3",
+                        "title": "Applications",
+                        "description": "Research real-world applications.",
+                        "specialization": "Applications",
+                        "priority": "medium"
                     }
                 ]
             }
@@ -219,7 +238,23 @@ if __name__ == "__main__":
 
         "status": "",
 
-        "error": ""
+        "error": "",
+
+        "workflow_name": "",
+
+        "execution_mode": "",
+
+        "reasoning": "",
+
+        "tasks": [],
+
+        "research_results": [],
+
+        "active_nodes": [],
+
+        "completed_nodes": [],
+
+        "failed_nodes": [],
     }
 
     result = planner_node(state)

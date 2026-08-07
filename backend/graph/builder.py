@@ -4,10 +4,7 @@ from graph.state import WorkflowState
 
 from agents.planner import planner_node
 from agents.task_splitter import task_splitter_node
-from agents.researcher import (
-    researcher_node_1,
-    researcher_node_2,
-)
+from execution.engine import execution_node
 from agents.summarizer import summarizer_node
 from agents.verifier import verifier_node
 
@@ -34,13 +31,8 @@ def build_workflow():
     )
 
     workflow.add_node(
-        "ResearchAgent1",
-        researcher_node_1,
-    )
-
-    workflow.add_node(
-        "ResearchAgent2",
-        researcher_node_2,
+        "Executor",
+        execution_node,
     )
 
     workflow.add_node(
@@ -69,16 +61,11 @@ def build_workflow():
 
     workflow.add_edge(
         "TaskSplitter",
-        "ResearchAgent1",
+        "Executor",
     )
 
     workflow.add_edge(
-        "ResearchAgent1",
-        "ResearchAgent2",
-    )
-
-    workflow.add_edge(
-        "ResearchAgent2",
+        "Executor",
         "Summarizer",
     )
 

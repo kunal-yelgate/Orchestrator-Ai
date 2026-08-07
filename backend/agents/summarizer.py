@@ -6,6 +6,8 @@ from graph.state import WorkflowState
 class Summarizer:
     """
     Summarizer Agent
+
+    Combines all research outputs into one final report.
     """
 
     def __init__(self, llm_provider):
@@ -16,16 +18,9 @@ class Summarizer:
         system_prompt = """
 You are the Summarizer Agent.
 
-Combine multiple research outputs into one final report.
+Your job is to combine multiple research reports into one final report.
 
-IMPORTANT RULES
-
-1. Return ONLY valid JSON.
-2. Do NOT use markdown.
-3. Do NOT wrap JSON inside ```json.
-4. Do NOT explain anything.
-
-Return EXACTLY:
+Return ONLY valid JSON.
 
 {
     "title":"",
@@ -39,21 +34,25 @@ Return EXACTLY:
 
         for item in research_results:
 
-            title = item.get("title", "")
+            content += f"""
+Task:
+{item["title"]}
 
-            result = item.get("result", {})
+Specialization:
+{item["specialization"]}
 
-            summary = result.get("summary", "")
+Research:
+{item["result"]["summary"]}
 
-            content += f"\nTask: {title}\n"
-            content += f"Research:\n{summary}\n"
+-----------------------
+"""
 
         user_prompt = f"""
-Combine the following research into one final report.
+Combine all research reports into ONE comprehensive report.
 
 {content}
 
-Return ONLY valid JSON.
+Return ONLY JSON.
 """
 
         return system_prompt, user_prompt
@@ -72,46 +71,27 @@ Return ONLY valid JSON.
 
     def parse_response(self, response):
 
-        if not response:
-            raise ValueError("Summarizer returned an empty response.")
-
         try:
             return json.loads(response)
 
-        except json.JSONDecodeError:
-
-            cleaned = response.strip()
-
-            if cleaned.startswith("```json"):
-                cleaned = cleaned[7:]
-
-            if cleaned.startswith("```"):
-                cleaned = cleaned[3:]
-
-            if cleaned.endswith("```"):
-                cleaned = cleaned[:-3]
-
-            cleaned = cleaned.strip()
+        except Exception:
 
             try:
-                return json.loads(cleaned)
+
+                start = response.find("{")
+                end = response.rfind("}")
+
+                return json.loads(
+                    response[start:end + 1]
+                )
 
             except Exception:
-
-                start = cleaned.find("{")
-                end = cleaned.rfind("}")
-
-                if start != -1 and end != -1:
-
-                    return json.loads(
-                        cleaned[start:end + 1]
-                    )
 
                 return {
 
                     "title": "Summary",
 
-                    "summary": cleaned,
+                    "summary": response,
 
                     "key_points": [],
 
@@ -130,117 +110,47 @@ def summarizer_node(state: WorkflowState):
 
     state["current_agent"] = "Summarizer"
 
-    state.setdefault("execution_trace", [])
-    state["execution_trace"].append("Summarizer")
+    research_results = state.get(
+        "research_results",
+        [],
+    )
 
-    if state.get("error"):
-        return state
+    if not research_results:
 
-    try:
-
-        research_results = state.get("research_results", [])
-
-        if not research_results:
-            raise Exception("No research results available.")
-
-        summarizer = Summarizer(state["llm"])
-
-        system_prompt, user_prompt = summarizer.build_prompt(
-            research_results
+        raise Exception(
+            "No research results available."
         )
 
-        response = summarizer.call_llm(
-            system_prompt,
-            user_prompt,
-        )
+    summarizer = Summarizer(
+        state["llm"]
+    )
 
-        print("\n========== RAW SUMMARIZER OUTPUT ==========\n")
-        print(response)
+    system_prompt, user_prompt = summarizer.build_prompt(
+        research_results
+    )
 
-        summary = summarizer.parse_response(response)
+    response = summarizer.call_llm(
+        system_prompt,
+        user_prompt,
+    )
 
-        print("\n========== PARSED SUMMARY ==========\n")
-        print(summary)
+    summary = summarizer.parse_response(
+        response
+    )
 
-        state["summary"] = summary
+    state["summary"] = summary
 
-        state["status"] = "Summarizer Completed"
+    state["status"] = "Summarizer Completed"
 
-        print("\nSummarizer Finished Successfully\n")
+    state.setdefault(
+        "execution_trace",
+        []
+    )
 
-    except Exception as e:
+    state["execution_trace"].append(
+        "Summarizer"
+    )
 
-        state["status"] = "failed"
-
-        state["error"] = str(e)
-
-        print("\nSummarizer Error:\n")
-        print(e)
+    print("Summary Generated Successfully")
 
     return state
-
-
-# ==========================================================
-# Local Testing
-# ==========================================================
-
-if __name__ == "__main__":
-
-    class DummyLLM:
-
-        def generate(
-            self,
-            system_prompt,
-            user_prompt,
-            temperature=0.2,
-        ):
-
-            return """
-{
-    "title":"Artificial Intelligence",
-    "summary":"AI is transforming multiple industries.",
-    "key_points":[
-        "Healthcare",
-        "Finance",
-        "Education"
-    ],
-    "conclusion":"AI will continue to evolve."
-}
-"""
-
-    state = {
-
-        "llm": DummyLLM(),
-
-        "research_results": [
-
-            {
-                "title": "History",
-                "result": {
-                    "summary": "History of AI"
-                }
-            },
-
-            {
-                "title": "Applications",
-                "result": {
-                    "summary": "Applications of AI"
-                }
-            }
-
-        ],
-
-        "execution_trace": [],
-
-        "current_agent": "",
-
-        "summary": {},
-
-        "status": "",
-
-        "error": ""
-    }
-
-    result = summarizer_node(state)
-
-    print(result["summary"])

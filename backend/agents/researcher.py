@@ -5,7 +5,9 @@ from graph.state import WorkflowState
 
 class Researcher:
     """
-    Research Agent
+    Generic Research Agent
+
+    Executes exactly one research task.
     """
 
     def __init__(self, llm_provider):
@@ -14,9 +16,9 @@ class Researcher:
     def build_prompt(self, task):
 
         system_prompt = """
-You are a Research Agent.
+You are an expert Research Agent.
 
-Your job is to research the assigned task.
+Research ONLY the assigned task.
 
 Return ONLY valid JSON.
 
@@ -31,10 +33,19 @@ Return ONLY valid JSON.
 Research the following task.
 
 Task ID:
-{task["task_id"]}
+{task["id"]}
 
-Task:
+Title:
 {task["title"]}
+
+Description:
+{task["description"]}
+
+Specialization:
+{task["specialization"]}
+
+Priority:
+{task["priority"]}
 """
 
         return system_prompt, user_prompt
@@ -54,160 +65,107 @@ Task:
     def parse_response(self, response):
 
         try:
+
             return json.loads(response)
 
-        except json.JSONDecodeError:
+        except Exception:
 
             try:
 
                 start = response.find("{")
                 end = response.rfind("}")
 
-                if start != -1 and end != -1:
-                    return json.loads(response[start:end + 1])
+                return json.loads(
+                    response[start:end + 1]
+                )
 
             except Exception:
-                pass
 
-            return {
-                "summary": response,
-                "key_points": [],
-                "references": []
+                return {
+
+                    "summary": response,
+
+                    "key_points": [],
+
+                    "references": []
+
+                }
+    # ==========================================================
+# LangGraph Research Node
+# ==========================================================
+
+def research_node(state: WorkflowState):
+
+    task = state["current_task"]
+
+    print("\n" + "=" * 60)
+    print(f"🔍 Research Agent Started")
+    print(f"Task : {task['title']}")
+    print("=" * 60)
+
+    # ----------------------------------------------
+    # Runtime Tracking
+    # ----------------------------------------------
+
+    state.setdefault("active_nodes", [])
+    state.setdefault("completed_nodes", [])
+    state.setdefault("execution_trace", [])
+
+    state["active_nodes"].append(task["title"])
+
+    researcher = Researcher(
+        state["llm"]
+    )
+
+    system_prompt, user_prompt = researcher.build_prompt(
+        task
+    )
+
+    response = researcher.call_llm(
+        system_prompt,
+        user_prompt,
+    )
+
+    result = researcher.parse_response(
+        response
+    )
+
+    state["completed_nodes"].append(
+        task["title"]
+    )
+
+    print(f"✅ Completed : {task['title']}")
+
+    print("=" * 60)
+
+    return {
+
+        "research_results": [
+
+            {
+
+                "task_id": task["id"],
+
+                "title": task["title"],
+
+                "specialization": task["specialization"],
+
+                "result": result,
+
             }
 
+        ],
 
-# ==========================================================
-# Research Agent 1
-# ==========================================================
+        "execution_trace": [
 
-def researcher_node_1(state: WorkflowState):
+            f"Research : {task['title']}"
 
-    print("\n========== Research Agent 1 ==========\n")
+        ],
 
-    state["current_agent"] = "ResearchAgent1"
-    state["execution_trace"].append("ResearchAgent1")
+        "completed_nodes": [
 
-    if state.get("error"):
-        return state
+            task["title"]
 
-    tasks = state.get("tasks", [])
+        ]
 
-    if len(tasks) == 0:
-
-        state["research_agent_1"] = {}
-
-        return state
-
-    try:
-
-        task = tasks[0]
-
-        researcher = Researcher(state["llm"])
-
-        system_prompt, user_prompt = researcher.build_prompt(task)
-
-        response = researcher.call_llm(
-            system_prompt,
-            user_prompt
-        )
-
-        result = researcher.parse_response(response)
-
-        state["research_agent_1"] = {
-
-            "task_id": task["task_id"],
-
-            "title": task["title"],
-
-            "result": result
-
-        }
-
-    except Exception as e:
-
-        state["error"] = str(e)
-
-        state["status"] = "failed"
-
-        state["research_agent_1"] = {}
-
-    return state
-
-
-# ==========================================================
-# Research Agent 2
-# ==========================================================
-
-def researcher_node_2(state: WorkflowState):
-
-    print("\n========== Research Agent 2 ==========\n")
-
-    state["current_agent"] = "ResearchAgent2"
-    state["execution_trace"].append("ResearchAgent2")
-
-    if state.get("error"):
-        return state
-
-    tasks = state.get("tasks", [])
-
-    if len(tasks) < 2:
-
-        state["research_agent_2"] = {}
-
-        state["research_results"] = []
-
-        if state.get("research_agent_1"):
-            state["research_results"].append(
-                state["research_agent_1"]
-            )
-
-        return state
-
-    try:
-
-        task = tasks[1]
-
-        researcher = Researcher(state["llm"])
-
-        system_prompt, user_prompt = researcher.build_prompt(task)
-
-        response = researcher.call_llm(
-            system_prompt,
-            user_prompt
-        )
-
-        result = researcher.parse_response(response)
-
-        state["research_agent_2"] = {
-
-            "task_id": task["task_id"],
-
-            "title": task["title"],
-
-            "result": result
-
-        }
-
-        state["research_results"] = []
-
-        if state.get("research_agent_1"):
-            state["research_results"].append(
-                state["research_agent_1"]
-            )
-
-        if state.get("research_agent_2"):
-            state["research_results"].append(
-                state["research_agent_2"]
-            )
-
-        state["status"] = "Research Completed"
-
-        print("Research Completed Successfully")
-
-    except Exception as e:
-
-        state["error"] = str(e)
-
-        state["status"] = "failed"
-
-    return state
+    }

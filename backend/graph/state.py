@@ -1,81 +1,80 @@
-from typing import TypedDict, List, Dict, Any
+from typing import TypedDict, List, Dict, Any, Annotated
+import operator
 
 
 class WorkflowState(TypedDict):
     """
-    Shared state passed between all LangGraph nodes.
+    Shared LangGraph Workflow State
     """
 
-    # ===================================================
+    # =====================================================
     # Workflow Information
-    # ===================================================
+    # =====================================================
 
     workflow_id: str
-
     conversation_name: str
-
     created_at: str
 
     goal: str
 
     status: str
-
     error: str
 
-    # ===================================================
+    # =====================================================
     # LLM Configuration
-    # ===================================================
+    # =====================================================
 
     provider: str
-
     model: str
-
     api_key: str
-
     hf_provider: str
 
     llm: Any
 
-    # ===================================================
-    # Planner
-    # ===================================================
+    # =====================================================
+    # Planner Output
+    # =====================================================
 
     plan: Dict[str, Any]
 
-    # ===================================================
-    # Task Splitter
-    # ===================================================
+    workflow_name: str
+
+    execution_mode: str
+
+    reasoning: str
+
+    # =====================================================
+    # Task Management
+    # =====================================================
 
     tasks: List[Dict[str, Any]]
 
-    # ===================================================
-    # Research Agents
-    # ===================================================
+    # Current task executed by one Research Agent
+    current_task: Dict[str, Any]
 
-    research_agent_1: Dict[str, Any]
+    # =====================================================
+    # Parallel Research Results
+    # =====================================================
 
-    research_agent_2: Dict[str, Any]
+    research_results: Annotated[
+        List[Dict[str, Any]],
+        operator.add
+    ]
 
-    research_results: List[Dict[str, Any]]
-
-    # ===================================================
-    # Summarizer
-    # ===================================================
+    # =====================================================
+    # Final Outputs
+    # =====================================================
 
     summary: Dict[str, Any]
-
-    # ===================================================
-    # Verifier
-    # ===================================================
 
     verification: Dict[str, Any]
 
     final_output: Dict[str, Any]
 
-    # ===================================================
+    # =====================================================
     # Execution Tracking
-    # ===================================================
+    # =====================================================
 
     current_agent: str
 
-    execution_trace: List[str]
+##(Implement dynamic workflow execution engine)
