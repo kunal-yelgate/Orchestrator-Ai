@@ -63,12 +63,16 @@ const modelPool = [
   { name: "Claude 3.7", role: "Synthesis", color: "#f59e0b" },
 ];
 
+<<<<<<< HEAD
 const promptSuggestions = [
   "Compare two product strategies",
   "Draft a research-backed roadmap",
   "Summarize this workflow clearly",
   "Analyze market competitors",
 ];
+=======
+
+>>>>>>> 910f933 (Added the inital file)
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -549,6 +553,7 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
 
         {/* Grid: chat + insight */}
         <div className="workspace-grid">
+<<<<<<< HEAD
           {/* Chat panel */}
           <section className="chat-panel" aria-label="Chat conversation">
             <div
@@ -565,6 +570,28 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
                     message.role === "user" ? "You" : "Orchestrator"
                   }: ${message.text}`}
                 >
+=======
+
+          {/* ── Chat Panel ───────────────────────────────────────── */}
+          <section className="chat-panel" aria-label="Chat Conversation">
+
+            <div className="message-list" role="log" aria-live="polite">
+
+              {/* Display Header if only initial message */}
+              {messages.length <= 1 && (
+                <div className="empty-state-container">
+                  <div className="empty-hero">
+                    <span className="empty-hero-icon">✦</span>
+                    <h3>Enterprise AI Orchestration</h3>
+                    <p>Dispatch complex research, synthesis, and verification tasks across multiple LLMs automatically.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Message Rows */}
+              {messages.map((msg) => (
+                <div key={msg.id} className={`message-row ${msg.role}`}>
+>>>>>>> 910f933 (Added the inital file)
                   <div className="avatar" aria-hidden="true">
                     {message.role === "user" ? "U" : "AI"}
                   </div>
