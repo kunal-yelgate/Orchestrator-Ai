@@ -24,36 +24,12 @@ const historyItems = [
 ];
 
 const workflowStages = [
-  {
-    name: "Planner",
-    detail: "Analyzes the user goal.",
-    icon: "🤖",
-  },
-  {
-    name: "Task Splitter",
-    detail: "Breaks the goal into subtasks.",
-    icon: "📋",
-  },
-  {
-    name: "Research Agent 1",
-    detail: "Researches the first task.",
-    icon: "🔍",
-  },
-  {
-    name: "Research Agent 2",
-    detail: "Researches the second task.",
-    icon: "🔍",
-  },
-  {
-    name: "Summarizer",
-    detail: "Combines all research.",
-    icon: "📝",
-  },
-  {
-    name: "Verifier",
-    detail: "Validates the final output.",
-    icon: "✅",
-  },
+  { name: "Planner", detail: "Analyzes the user goal.", icon: "🤖" },
+  { name: "Task Splitter", detail: "Breaks the goal into subtasks.", icon: "📋" },
+  { name: "Research Agent 1", detail: "Researches the first task.", icon: "🔍" },
+  { name: "Research Agent 2", detail: "Researches the second task.", icon: "🔍" },
+  { name: "Summarizer", detail: "Combines all research.", icon: "📝" },
+  { name: "Verifier", detail: "Validates the final output.", icon: "✅" },
 ];
 
 const modelPool = [
@@ -80,17 +56,27 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
   ]);
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
-  const [activeStage, setActiveStage] = useState("Evidence Research");
+  const [activeStage, setActiveStage] = useState("Planner");
   const [selectedModel, setSelectedModel] = useState("Auto");
+  const [workflow, setWorkflow] = useState(null);
+  const [metrics, setMetrics] = useState({
+    execution_time: 0,
+    total_tokens: 0,
+    prompt_tokens: 0,
+    completion_tokens: 0,
+    estimated_cost: 0,
+    provider: "",
+    model: "",
+  });
+
   const messagesEndRef = useRef(null);
 
-  // Auto-scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isThinking]);
 
-  const activeStageObj = workflowStages.find((s) => s.name === activeStage);
-  const activeIndex = workflowStages.findIndex((s) => s.name === activeStage);
+  const activeStageObj = workflowStages.find((stage) => stage.name === activeStage);
+  const activeIndex = workflowStages.findIndex((stage) => stage.name === activeStage);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -106,52 +92,51 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
       meta: `Model: ${selectedModel}`,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((previousMessages) => [...previousMessages, userMessage]);
     setInput("");
     setIsThinking(true);
 
     try {
-      // Stage 1
-      // Stage 1
-setActiveStage("Planner");
-await new Promise((resolve) => setTimeout(resolve, 300));
+      setActiveStage("Planner");
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
-// Stage 2
-setActiveStage("Task Splitter");
-await new Promise((resolve) => setTimeout(resolve, 300));
+      setActiveStage("Task Splitter");
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
-const provider =
-  selectedModel === "Auto"
-    ? "groq"
-    : selectedModel.toLowerCase();
+      const provider =
+        selectedModel === "Auto" ? "groq" : selectedModel.toLowerCase();
 
-// ===========================
-// Call FastAPI Backend
-// ===========================
-const result = await orchestrate(
-  goal,
-  provider
-);
+      const result = await orchestrate(goal, provider);
 
-console.log("Backend Response:", result);
+      console.log("Backend Response:", result);
 
-// Stage 3
-setActiveStage("Research Agent 1");
-await new Promise((resolve) => setTimeout(resolve, 300));
+      setWorkflow(result);
 
-// Stage 4
-setActiveStage("Research Agent 2");
-await new Promise((resolve) => setTimeout(resolve, 300));
+      setMetrics({
+        execution_time: result.execution_time ?? 0,
+        total_tokens: result.total_tokens ?? 0,
+        prompt_tokens: result.prompt_tokens ?? 0,
+        completion_tokens: result.completion_tokens ?? 0,
+        estimated_cost: result.estimated_cost ?? 0,
+        provider: result.provider ?? "",
+        model: result.model ?? "",
+      });
 
-// Stage 5
-setActiveStage("Summarizer");
-await new Promise((resolve) => setTimeout(resolve, 300));
+      const workflowTasks = result.tasks || [];
 
-// Stage 6
-setActiveStage("Verifier");
-await new Promise((resolve) => setTimeout(resolve, 300));
+      for (let index = 0; index < workflowTasks.length; index += 1) {
+        setActiveStage(`Research Agent ${index + 1}`);
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
 
-let reply = "Workflow completed successfully.";
+      setActiveStage("Summarizer");
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      setActiveStage("Verifier");
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      let reply = "Workflow completed successfully.";
+
       if (result.summary) {
         if (typeof result.summary === "string") {
           reply = result.summary;
@@ -171,12 +156,15 @@ let reply = "Workflow completed successfully.";
           : "Completed",
       };
 
-      setMessages((prev) => [...prev, assistantMessage]);
+      setMessages((previousMessages) => [
+        ...previousMessages,
+        assistantMessage,
+      ]);
     } catch (error) {
       console.error(error);
 
-      setMessages((prev) => [
-        ...prev,
+      setMessages((previousMessages) => [
+        ...previousMessages,
         {
           id: Date.now() + 1,
           role: "assistant",
@@ -191,7 +179,6 @@ let reply = "Workflow completed successfully.";
 
   return (
     <div className="app-shell">
-      {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside className="sidebar" aria-label="Navigation sidebar">
         <div className="brand-block">
           <div className="brand-icon" aria-hidden="true">
@@ -227,25 +214,38 @@ let reply = "Workflow completed successfully.";
 
         <div className="sidebar-card metrics-card">
           <div className="section-title">Live metrics</div>
+
           <div className="metric-grid">
             <div className="metric-box">
-              <strong>3</strong>
-              <span>Models</span>
+              <strong>{metrics.execution_time.toFixed(2)}s</strong>
+              <span>Execution</span>
             </div>
+
             <div className="metric-box">
-              <strong>4</strong>
-              <span>Stages</span>
+              <strong>{metrics.total_tokens}</strong>
+              <span>Tokens</span>
             </div>
+
             <div className="metric-box">
-              <strong>100%</strong>
-              <span>Traced</span>
+              <strong>${metrics.estimated_cost}</strong>
+              <span>Cost</span>
+            </div>
+
+            <div className="metric-box">
+              <strong>{metrics.provider || "-"}</strong>
+              <span>Provider</span>
+            </div>
+
+            <div className="metric-box">
+              <strong>{metrics.model || "-"}</strong>
+              <span>Model</span>
             </div>
           </div>
         </div>
 
-        {/* Active stage indicator */}
         <div className="sidebar-card active-stage-card">
           <div className="section-title">Active stage</div>
+
           <div
             className="active-stage-display"
             aria-live="polite"
@@ -259,17 +259,18 @@ let reply = "Workflow completed successfully.";
               <p className="active-stage-detail">{activeStageObj?.detail}</p>
             </div>
           </div>
+
           <div
             className="stage-progress"
             aria-label={`Stage ${activeIndex + 1} of ${workflowStages.length}`}
           >
-            {workflowStages.map((_, i) => (
+            {workflowStages.map((_, index) => (
               <div
-                key={i}
+                key={index}
                 className={`progress-dot ${
-                  i === activeIndex
+                  index === activeIndex
                     ? "active"
-                    : i < activeIndex
+                    : index < activeIndex
                     ? "done"
                     : ""
                 }`}
@@ -280,9 +281,7 @@ let reply = "Workflow completed successfully.";
         </div>
       </aside>
 
-      {/* ── Main workspace ───────────────────────────────────── */}
       <main className="workspace" aria-label="AI orchestration workspace">
-        {/* Top bar */}
         <header className="topbar">
           <div className="topbar-copy">
             <p className="eyebrow">Live orchestrator</p>
@@ -291,6 +290,7 @@ let reply = "Workflow completed successfully.";
               Intent planning → research → synthesis → verification
             </p>
           </div>
+
           <div className="topbar-actions">
             <div
               className="user-badge"
@@ -302,22 +302,25 @@ let reply = "Workflow completed successfully.";
                 ? currentUser.name
                 : currentUser?.email?.split("@")[0]}
             </div>
+
             <label htmlFor="model-select" className="sr-only">
               Select AI model
             </label>
+
             <select
               id="model-select"
               className="model-select"
               value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
+              onChange={(event) => setSelectedModel(event.target.value)}
             >
               <option value="Auto">⚡ Auto (stage)</option>
-              {modelPool.map((m) => (
-                <option key={m.name} value={m.name}>
-                  {m.name}
+              {modelPool.map((model) => (
+                <option key={model.name} value={model.name}>
+                  {model.name}
                 </option>
               ))}
             </select>
+
             <div
               className={`status-pill ${
                 backendStatus === "Backend offline" ? "offline" : ""
@@ -327,6 +330,7 @@ let reply = "Workflow completed successfully.";
             >
               {backendStatus}
             </div>
+
             <button
               id="logout-btn"
               className="secondary-btn compact"
@@ -338,9 +342,7 @@ let reply = "Workflow completed successfully.";
           </div>
         </header>
 
-        {/* Grid: chat + insight */}
         <div className="workspace-grid">
-          {/* Chat panel */}
           <section className="chat-panel" aria-label="Chat conversation">
             <div
               className="message-list"
@@ -359,6 +361,7 @@ let reply = "Workflow completed successfully.";
                   <div className="avatar" aria-hidden="true">
                     {message.role === "user" ? "U" : "AI"}
                   </div>
+
                   <div className="bubble">
                     {message.meta && (
                       <div className="message-meta">{message.meta}</div>
@@ -376,10 +379,12 @@ let reply = "Workflow completed successfully.";
                   <div className="avatar" aria-hidden="true">
                     AI
                   </div>
+
                   <div className="bubble thinking">
                     <div className="message-meta">
                       Routing across model pool…
                     </div>
+
                     <div className="thinking-dots" aria-hidden="true">
                       <span />
                       <span />
@@ -388,6 +393,7 @@ let reply = "Workflow completed successfully.";
                   </div>
                 </div>
               )}
+
               <div ref={messagesEndRef} />
             </div>
 
@@ -424,6 +430,7 @@ let reply = "Workflow completed successfully.";
                 disabled={isThinking}
                 autoComplete="off"
               />
+
               <button
                 id="send-btn"
                 type="submit"
@@ -435,11 +442,13 @@ let reply = "Workflow completed successfully.";
             </form>
           </section>
 
-          {/* Insight panel */}
           <aside className="insight-panel" aria-label="Workflow insight panel">
             <div className="info-card">
               <div className="section-title">LangGraph Flow</div>
-              <WorkflowGraph activeStage={activeStage} />
+              <WorkflowGraph
+                activeStage={activeStage}
+                tasks={workflow?.tasks || []}
+              />
             </div>
 
             <div className="info-card">

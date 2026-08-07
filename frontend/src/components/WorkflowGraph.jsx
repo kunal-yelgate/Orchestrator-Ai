@@ -1,27 +1,17 @@
 import React from "react";
 import "./WorkflowGraph.css";
 
-const WorkflowGraph = ({ activeStage }) => {
-  const stages = [
-    "Planner",
-    "Task Splitter",
-    "Research Agent 1",
-    "Research Agent 2",
-    "Summarizer",
-    "Verifier",
-  ];
+const WorkflowGraph = ({ activeStage, tasks = [] }) => {
 
-  const isActive = (stage) => activeStage === stage;
+  const isResearchStage = (stage) =>
+    stage.startsWith("Research");
 
-  const isCompleted = (stage) =>
-    stages.indexOf(stage) < stages.indexOf(activeStage);
-
-  const Node = ({ stage, icon, title, desc }) => (
+  const Node = ({ stage, icon, title, desc, active, completed }) => (
     <div
       className={`workflow-node ${
-        isActive(stage)
+        active
           ? "active running"
-          : isCompleted(stage)
+          : completed
           ? "completed"
           : ""
       }`}
@@ -38,76 +28,103 @@ const WorkflowGraph = ({ activeStage }) => {
         {desc}
       </div>
     </div>
-  );
-
-  return (
+  );  return (
     <div className="workflow-container">
 
       {/* Planner */}
-
       <Node
         stage="Planner"
         icon="🤖"
         title="Planner"
         desc="Analyze User Goal"
+        active={activeStage === "Planner"}
+        completed={
+          activeStage !== "Planner"
+        }
       />
 
       <div className="workflow-line"></div>
 
       {/* Task Splitter */}
-
       <Node
         stage="Task Splitter"
         icon="📋"
         title="Task Splitter"
-        desc="Split into Parallel Tasks"
+        desc="Split into Tasks"
+        active={activeStage === "Task Splitter"}
+        completed={
+          activeStage !== "Planner" &&
+          activeStage !== "Task Splitter"
+        }
       />
 
       <div className="workflow-line"></div>
 
-      {/* Parallel Research */}
-
+      {/* Dynamic Research Agents */}
       <div className="parallel-wrapper">
 
         <div className="parallel-row">
 
-          <Node
-            stage="Research Agent 1"
-            icon="🔍"
-            title="Research Agent 1"
-            desc="Collect Information"
-          />
+          {tasks.length > 0 ? (
 
-          <Node
-            stage="Research Agent 2"
-            icon="🔎"
-            title="Research Agent 2"
-            desc="Validate Sources"
-          />
+            tasks.map((task, index) => (
+
+              <Node
+                key={task.id || index}
+                stage={`Research Agent ${index + 1}`}
+                icon="🔍"
+                title={task.title}
+                desc={task.specialization || "Research"}
+                active={
+                  activeStage === `Research Agent ${index + 1}`
+                }
+                completed={
+                  isResearchStage(activeStage) &&
+                  activeStage !== `Research Agent ${index + 1}`
+                }
+              />
+
+            ))
+
+          ) : (
+
+            <Node
+              stage="Research"
+              icon="🔍"
+              title="Waiting..."
+              desc="No Tasks Generated"
+              active={false}
+              completed={false}
+            />
+
+          )}
 
         </div>
-                <div className="workflow-line"></div>
 
       </div>
 
-      {/* Summarizer */}
+      <div className="workflow-line"></div>
 
+      {/* Summarizer */}
       <Node
         stage="Summarizer"
         icon="📝"
         title="Summarizer"
         desc="Merge Research Results"
+        active={activeStage === "Summarizer"}
+        completed={activeStage === "Verifier"}
       />
 
       <div className="workflow-line"></div>
 
       {/* Verifier */}
-
       <Node
         stage="Verifier"
         icon="✅"
         title="Verifier"
-        desc="Verify & Finalize Response"
+        desc="Verify Final Answer"
+        active={activeStage === "Verifier"}
+        completed={false}
       />
 
     </div>

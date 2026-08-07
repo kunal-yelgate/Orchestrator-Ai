@@ -1,22 +1,27 @@
+from typing import Any, Dict, List
+
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any
 
 
 class OrchestrateRequest(BaseModel):
     goal: str
     provider: str
-    # Server-side paths of previously uploaded documents (see POST /upload).
-    # When non-empty, the Retriever always runs regardless of what the
-    # Planner's own plan says.
     documents: List[str] = Field(default_factory=list)
 
 
 class OrchestrateResponse(BaseModel):
     workflow_id: str
-    execution_trace: List[str]
-    retrieval: Dict[str, Any] = Field(default_factory=dict)
-    summary: Dict[str, Any]
-    verification: Dict[str, Any]
+    tasks: List[Dict[str, Any]] = Field(default_factory=list)
+    execution_trace: List[str] = Field(default_factory=list)
+    summary: Dict[str, Any] = Field(default_factory=dict)
+    verification: Dict[str, Any] = Field(default_factory=dict)
+    execution_time: float = 0.0
+    total_tokens: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    estimated_cost: float = 0.0
+    provider: str = ""
+    model: str = ""
 
 
 class UploadResponse(BaseModel):
