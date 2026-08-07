@@ -1,88 +1,58 @@
-import os
-from typing import Any, Dict, Optional
+from graph.state import WorkflowState
 
 
-class Verifier:
-    """Simple orchestrator-style router for selecting an LLM provider."""
+def verifier_node(state: WorkflowState):
+    """
+    Verifier Agent
 
-    def __init__(self) -> None:
-        self.provider_keys = {
-            "openai": "OPENAI_API_KEY",
-            "anthropic": "ANTHROPIC_API_KEY",
-            "gemini": ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
-            "groq": "GROQ_API_KEY",
-        }
+    Checks whether:
+    - All research tasks completed
+    - Summary exists
+    - Workflow can be marked completed
+    """
 
-        self.default_models = {
-            "openai": "gpt-4o-mini",
-            "anthropic": "claude-3-haiku",
-            "gemini": "gemini-1.5-flash",
-            "groq": "llama-3.1-8b-instant",
-        }
+    print("Verifier Running...")
 
-    def _has_provider_key(self, provider: str, env: Optional[Dict[str, str]] = None) -> bool:
-        keys = self.provider_keys.get(provider, [])
-        if isinstance(keys, str):
-            keys = [keys]
+    state["current_agent"] = "Verifier"
+    state["execution_trace"].append("Verifier")
 
-        source = env or os.environ
-        return any(bool(source.get(key)) for key in keys)
+    research_results = state.get("research_results", [])
+    summary = state.get("summary", {})
 
-    def select_llm(self, task: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Choose the best provider for a task based on keywords and available credentials."""
-        task_text = (task or "").lower()
-        context = context or {}
+    issues = []
 
-        preferred_provider = str(context.get("preferred_provider", "")).strip().lower()
-        if preferred_provider and self._has_provider_key(preferred_provider):
-            return {
-                "provider": preferred_provider,
-                "model": self.default_models.get(preferred_provider, "default-model"),
-                "reason": "Preferred provider is available",
-            }
+    # Check research results
+    if not research_results:
+        issues.append("No research results found.")
 
-        if any(word in task_text for word in ["code", "debug", "implement", "refactor", "script"]):
-            if self._has_provider_key("openai"):
-                return self._build_result("openai", "Strong coding and reasoning support")
-            if self._has_provider_key("anthropic"):
-                return self._build_result("anthropic", "Good fallback for coding tasks")
+    # Check summary
+    if not summary:
+        issues.append("Summary not generated.")
 
-        if any(word in task_text for word in ["research", "summarize", "long", "document", "analysis"]):
-            if self._has_provider_key("anthropic"):
-                return self._build_result("anthropic", "Good for long-context reasoning")
-            if self._has_provider_key("openai"):
-                return self._build_result("openai", "Balanced long-context performance")
+    elif isinstance(summary, dict):
+        if not summary.get("content"):
+            issues.append("Summary content is empty.")
 
-        if any(word in task_text for word in ["image", "vision", "ocr", "video"]):
-            if self._has_provider_key("gemini"):
-                return self._build_result("gemini", "Good multimodal support")
-            if self._has_provider_key("openai"):
-                return self._build_result("openai", "Fallback multimodal option")
+    # Verification Result
+    verified = len(issues) == 0
 
-        if any(word in task_text for word in ["fast", "cheap", "simple", "quick"]):
-            if self._has_provider_key("groq"):
-                return self._build_result("groq", "Fast and low-latency choice")
+    confidence = 1.0 if verified else 0.4
 
-        for provider in ["openai", "anthropic", "gemini", "groq"]:
-            if self._has_provider_key(provider):
-                return self._build_result(provider, "Fallback provider selected")
+    state["verification"] = {
+        "verified": verified,
+        "confidence": confidence,
+        "issues": issues
+    }
 
-        return {
-            "provider": "local",
-            "model": "local-model",
-            "reason": "No supported API key detected; use a local or hosted fallback",
-        }
+    # Final Output
+    state["final_output"] = {
+        "workflow_id": state["workflow_id"],
+        "goal": state["goal"],
+        "summary": summary,
+        "verification": state["verification"]
+    }
 
-    def _build_result(self, provider: str, reason: str) -> Dict[str, Any]:
-        return {
-            "provider": provider,
-            "model": self.default_models.get(provider, "default-model"),
-            "reason": reason,
-        }
+    # Workflow Status
+    state["status"] = "completed" if verified else "failed"
 
-
-def route_task(task: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Convenience wrapper for the verifier router."""
-    return Verifier().select_llm(task, context)
-
-__all__ = ["Verifier", "route_task"]
+    return state
