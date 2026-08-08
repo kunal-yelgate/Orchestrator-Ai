@@ -480,9 +480,4 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## 👤 Author
 
-**Kunal Yelgate**
 
-- GitHub: [@kunal-yelgate](https://github.com/kunal-yelgate)
-- Portfolio: [kunalyelgate.vercel.app](https://kunalyelgate.vercel.app)
-- LinkedIn: [in/kunal-yelgate](https://linkedin.com/in/kunal-yelgate)
-- Email: yelgatekunal@gmail.com
