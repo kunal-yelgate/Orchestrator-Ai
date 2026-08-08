@@ -14,7 +14,6 @@ class Verifier:
         self.llm = llm_provider
 
     def build_prompt(self, summary):
-
         system_prompt = """
 You are the Verifier Agent.
 
@@ -42,28 +41,23 @@ Return ONLY valid JSON.
 Verify the following report.
 
 Title:
-{summary.get("title","")}
+{summary.get("title", "")}
 
 Summary:
-{summary.get("summary","")}
+{summary.get("summary", "")}
 
 Key Points:
-{summary.get("key_points",[])}
+{summary.get("key_points", [])}
 
 Conclusion:
-{summary.get("conclusion","")}
+{summary.get("conclusion", "")}
 
 Return ONLY JSON.
 """
 
         return system_prompt, user_prompt
 
-    def call_llm(
-        self,
-        system_prompt,
-        user_prompt,
-    ):
-
+    def call_llm(self, system_prompt, user_prompt):
         return self.llm.generate(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
@@ -71,34 +65,25 @@ Return ONLY JSON.
         )
 
     def parse_response(self, response):
-
         try:
-
             return json.loads(response)
 
-        except Exception:
-
+        except json.JSONDecodeError:
             try:
-
                 start = response.find("{")
                 end = response.rfind("}")
 
-                return json.loads(
-                    response[start:end + 1]
-                )
+                if start == -1 or end == -1:
+                    raise ValueError("No JSON object found.")
 
-            except Exception:
+                return json.loads(response[start : end + 1])
 
+            except (json.JSONDecodeError, ValueError):
                 return {
-
                     "verified": True,
-
                     "confidence": 80,
-
                     "feedback": response,
-
-                    "improvements": []
-
+                    "improvements": [],
                 }
 
 
@@ -107,79 +92,75 @@ Return ONLY JSON.
 # ==========================================================
 
 def verifier_node(state: WorkflowState):
-
     print("\n========== Verifier ==========\n")
 
     state["current_agent"] = "Verifier"
 
-    summary = state.get(
-        "summary",
-        {}
-    )
+    summary = state.get("summary", {})
 
     if not summary:
+        raise ValueError("No summary available.")
 
-        raise Exception(
-            "No summary available."
-        )
+    verifier = Verifier(state["llm"])
 
-    verifier = Verifier(
-        state["llm"]
+    system_prompt, user_prompt = verifier.build_prompt(summary)
+
+    llm_response = verifier.call_llm(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
     )
 
-    system_prompt, user_prompt = verifier.build_prompt(
-        summary
+    content = (
+        llm_response.get("content", "")
+        if isinstance(llm_response, dict)
+        else llm_response
     )
 
-    response = verifier.call_llm(
-        system_prompt,
-        user_prompt,
+    verification = verifier.parse_response(content)
+
+    usage = (
+        llm_response.get("usage", {})
+        if isinstance(llm_response, dict)
+        else {}
     )
 
-    verification = verifier.parse_response(
-        response
+    state["prompt_tokens"] = state.get("prompt_tokens", 0) + usage.get(
+        "prompt_tokens",
+        0,
+    )
+
+    state["completion_tokens"] = state.get(
+        "completion_tokens",
+        0,
+    ) + usage.get(
+        "completion_tokens",
+        0,
+    )
+
+    state["total_tokens"] = state.get("total_tokens", 0) + usage.get(
+        "total_tokens",
+        0,
     )
 
     state["verification"] = verification
-
-    state["final_output"] = {
-
-        "workflow_name": state.get(
-            "workflow_name"
-        ),
-
-        "execution_mode": state.get(
-            "execution_mode"
-        ),
-
-        "summary": summary,
-
-        "verification": verification,
-
-        "research_tasks": len(
-            state.get(
-                "research_results",
-                []
-            )
-        ),
-
-        "execution_trace": state.get(
-            "execution_trace",
-            []
-        )
-
-    }
-
     state["status"] = "Completed"
 
-    state.setdefault(
-        "execution_trace",
-        []
-    )
+    state.setdefault("execution_trace", []).append("Verifier")
 
-    state["execution_trace"].append(
-        "Verifier"
-    )
+    state["final_output"] = {
+        "workflow_name": state.get("workflow_name"),
+        "execution_mode": state.get("execution_mode"),
+        "summary": summary,
+        "verification": verification,
+        "research_tasks": len(state.get("research_results", [])),
+        "execution_trace": state.get("execution_trace", []),
+        "provider": state.get("provider"),
+        "model": state.get("model"),
+        "execution_time": state.get("execution_time", 0.0),
+        "prompt_tokens": state.get("prompt_tokens", 0),
+        "completion_tokens": state.get("completion_tokens", 0),
+        "total_tokens": state.get("total_tokens", 0),
+    }
 
     print("Verification Completed Successfully")
 

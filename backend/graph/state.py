@@ -1,5 +1,5 @@
-from typing import TypedDict, List, Dict, Any, Annotated
 import operator
+from typing import Annotated, Any, Dict, List, TypedDict
 
 
 class WorkflowState(TypedDict):
@@ -54,9 +54,7 @@ class WorkflowState(TypedDict):
     plan: Dict[str, Any]
 
     workflow_name: str
-
     execution_mode: str
-
     reasoning: str
 
     # =====================================================
@@ -74,7 +72,7 @@ class WorkflowState(TypedDict):
 
     research_results: Annotated[
         List[Dict[str, Any]],
-        operator.add
+        operator.add,
     ]
 
 <<<<<<< HEAD
@@ -99,9 +97,7 @@ class WorkflowState(TypedDict):
 >>>>>>> e94346cfcadddf8d394baf03670753eda76980c0
 
     summary: Dict[str, Any]
-
     verification: Dict[str, Any]
-
     final_output: Dict[str, Any]
 
     # =====================================================
@@ -110,4 +106,37 @@ class WorkflowState(TypedDict):
 
     current_agent: str
 
-##(Implement dynamic workflow execution engine)
+    execution_trace: Annotated[
+        List[str],
+        operator.add,
+    ]
+
+    execution_time: float
+
+    active_nodes: List[str]
+
+    completed_nodes: Annotated[
+        List[str],
+        operator.add,
+    ]
+
+    failed_nodes: Annotated[
+        List[str],
+        operator.add,
+    ]
+    retry_count: int
+    # =====================================================
+    # Token & Cost Tracking
+    # =====================================================
+
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    estimated_cost: float
+
+    # =====================================================
+    # Approval / Version
+    # =====================================================
+
+    approved: bool
+    workflow_version: str
