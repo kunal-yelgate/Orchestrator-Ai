@@ -25,6 +25,13 @@ class OrchestrateResponse(BaseModel):
     # highlight the right node and fetch checkpoints from there.
     last_step_index: Optional[int] = None
     last_agent_name: Optional[str] = None
+    # Feature 3 — Automatic Provider Fallback: one entry per time a node's
+    # primary provider failed and generation fell back to another provider.
+    provider_events: List[Dict[str, Any]] = Field(default_factory=list)
+    # Feature 5 — Partial Failure Recovery: research agents that failed
+    # individually without halting the rest of the workflow.
+    research_failures: List[Dict[str, Any]] = Field(default_factory=list)
+    partial_failure: bool = False
 
 
 class UploadResponse(BaseModel):

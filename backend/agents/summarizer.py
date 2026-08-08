@@ -11,12 +11,18 @@ class Summarizer:
     def __init__(self, llm_provider):
         self.llm = llm_provider
 
-    def build_prompt(self, research_results):
+    def build_prompt(self, research_results, failed_tasks=None):
 
         system_prompt = """
 You are the Summarizer Agent.
 
 Combine multiple research outputs into one final report.
+
+Some research tasks may be missing because that research agent failed --
+if so you will be told which tasks were skipped. Write the report using
+only the research you were given; do not invent content for the missing
+tasks, but you may briefly note in the summary that those areas were not
+covered.
 
 IMPORTANT RULES
 
@@ -48,11 +54,25 @@ Return EXACTLY:
             content += f"\nTask: {title}\n"
             content += f"Research:\n{summary}\n"
 
+        failed_block = ""
+
+        if failed_tasks:
+
+            failed_titles = ", ".join(
+                task.get("title") or task.get("task_id") or "unknown task"
+                for task in failed_tasks
+            )
+
+            failed_block = f"""
+The following research tasks failed and are NOT included above:
+{failed_titles}
+"""
+
         user_prompt = f"""
 Combine the following research into one final report.
 
 {content}
-
+{failed_block}
 Return ONLY valid JSON.
 """
 
@@ -143,10 +163,13 @@ def summarizer_node(state: WorkflowState):
         if not research_results:
             raise Exception("No research results available.")
 
+        failed_tasks = state.get("research_failures", [])
+
         summarizer = Summarizer(state["llm"])
 
         system_prompt, user_prompt = summarizer.build_prompt(
-            research_results
+            research_results,
+            failed_tasks,
         )
 
         response = summarizer.call_llm(
@@ -161,6 +184,12 @@ def summarizer_node(state: WorkflowState):
 
         print("\n========== PARSED SUMMARY ==========\n")
         print(summary)
+
+        # Surface partial-failure info on the summary itself so it's
+        # visible in the final output / API response without the client
+        # needing to separately inspect state["research_failures"].
+        summary["partial_failure"] = bool(failed_tasks)
+        summary["failed_tasks"] = failed_tasks
 
         state["summary"] = summary
 

@@ -21,6 +21,7 @@ from api.schemas import (
 from agents.retrieval_agent import SUPPORTED_EXTENSIONS
 from graph.runner import run_workflow, node_names
 from llm.provider_factory import get_provider
+from llm.fallback_provider import FallbackProvider
 from utils.checkpoint import list_workflows, list_checkpoints, load_checkpoint
 
 
@@ -158,19 +159,92 @@ def _provider_config(provider: str):
 
 
 # ==========================================================
+# Automatic Provider Fallback
+#
+# If the requested provider fails at generation time, the LLM
+# transparently retries the same call on a fallback provider so the
+# workflow can continue instead of halting the whole run. See
+# llm/fallback_provider.py for the actual failover logic.
+# ==========================================================
+
+def _default_fallback_provider(provider: str) -> str:
+    # Gemini is the default safety net for everything except itself,
+    # in which case Groq is used instead.
+    return "groq" if provider == "gemini" else "gemini"
+
+
+def _try_build_provider(provider: str):
+    """
+    Best-effort provider construction. Returns None instead of raising
+    when the provider can't be built (e.g. its API key isn't configured
+    in this environment) -- a missing fallback should never prevent the
+    primary provider from being used.
+    """
+
+    try:
+        cfg = _provider_config(provider)
+
+        return get_provider(
+            provider=provider,
+            model=cfg["model"],
+            api_key=cfg["api_key"],
+            base_url=cfg["base_url"],
+        ), cfg
+
+    except Exception as e:
+        print(f"[Provider Fallback] Could not prepare '{provider}' as a fallback: {e}")
+        return None, None
+
+
+def _build_llm_with_fallback(provider: str, provider_events: list):
+    """
+    Builds the primary provider (must succeed -- this is the provider the
+    user actually asked for) and wraps it with a best-effort fallback
+    provider. Returns (llm, primary_cfg, fallback_provider_name).
+    """
+
+    primary_cfg = _provider_config(provider)
+
+    primary_llm = get_provider(
+        provider=provider,
+        model=primary_cfg["model"],
+        api_key=primary_cfg["api_key"],
+        base_url=primary_cfg["base_url"],
+    )
+
+    fallback_name = _default_fallback_provider(provider)
+    fallback_llm, _ = _try_build_provider(fallback_name)
+
+    if fallback_llm is None:
+        fallback_name = ""
+
+    llm = FallbackProvider(
+        primary=primary_llm,
+        primary_name=provider,
+        fallback=fallback_llm,
+        fallback_name=fallback_name,
+        on_fallback=provider_events.append,
+    )
+
+    return llm, primary_cfg, fallback_name
+
+
+# ==========================================================
 # Create Workflow State
 # ==========================================================
 
 def create_state(goal: str, provider: str, documents=None):
 
     provider = provider.lower()
-    cfg = _provider_config(provider)
 
-    llm = get_provider(
-        provider=provider,
-        model=cfg["model"],
-        api_key=cfg["api_key"],
-        base_url=cfg["base_url"],
+    # `provider_events` is mutated in place by FallbackProvider (via the
+    # on_fallback callback above) every time a fallback happens, so the
+    # same list object is stored on state and returned to the client.
+    provider_events: list = []
+
+    llm, cfg, fallback_provider = _build_llm_with_fallback(
+        provider,
+        provider_events,
     )
 
     return {
@@ -202,6 +276,10 @@ def create_state(goal: str, provider: str, documents=None):
 
         "llm": llm,
 
+        "fallback_provider": fallback_provider,
+
+        "provider_events": provider_events,
+
         "plan": {},
 
         "needs_retrieval": False,
@@ -217,6 +295,10 @@ def create_state(goal: str, provider: str, documents=None):
         "research_agent_2": {},
 
         "research_results": [],
+
+        "research_failures": [],
+
+        "partial_failure": False,
 
         "summary": {},
 
@@ -264,12 +346,34 @@ def rehydrate_state(state: dict) -> dict:
 
     state["api_key"] = api_key
 
-    state["llm"] = get_provider(
+    primary_llm = get_provider(
         provider=provider,
         model=state.get("model", ""),
         api_key=api_key,
         base_url=state.get("base_url"),
     )
+
+    # Preserve provider_events across rollback/resume instead of resetting
+    # it, so the full fallback history for this workflow_id survives.
+    provider_events = state.get("provider_events") or []
+    state["provider_events"] = provider_events
+
+    fallback_name = _default_fallback_provider(provider)
+    fallback_llm, _ = _try_build_provider(fallback_name)
+
+    state["fallback_provider"] = fallback_name if fallback_llm else ""
+
+    state["llm"] = FallbackProvider(
+        primary=primary_llm,
+        primary_name=provider,
+        fallback=fallback_llm,
+        fallback_name=state["fallback_provider"],
+        on_fallback=provider_events.append,
+    )
+
+    # Older checkpoints (saved before Feature 5) won't have these keys.
+    state.setdefault("research_failures", [])
+    state.setdefault("partial_failure", False)
 
     return state
 
@@ -292,6 +396,9 @@ def _to_orchestrate_response(result: dict) -> OrchestrateResponse:
         error=result.get("error", ""),
         last_step_index=last_step_index,
         last_agent_name=last_agent_name,
+        provider_events=result.get("provider_events", []),
+        research_failures=result.get("research_failures", []),
+        partial_failure=result.get("partial_failure", False),
     )
 
 
