@@ -14,7 +14,6 @@ class Researcher:
         self.llm = llm_provider
 
     def build_prompt(self, task):
-
         system_prompt = """
 You are an expert Research Agent.
 
@@ -23,9 +22,9 @@ Research ONLY the assigned task.
 Return ONLY valid JSON.
 
 {
-    "summary":"",
-    "key_points":[],
-    "references":[]
+    "summary": "",
+    "key_points": [],
+    "references": []
 }
 """
 
@@ -55,7 +54,6 @@ Priority:
         system_prompt,
         user_prompt,
     ):
-
         return self.llm.generate(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
@@ -63,109 +61,121 @@ Priority:
         )
 
     def parse_response(self, response):
-
         try:
-
             return json.loads(response)
 
-        except Exception:
-
+        except json.JSONDecodeError:
             try:
-
                 start = response.find("{")
                 end = response.rfind("}")
 
-                return json.loads(
-                    response[start:end + 1]
-                )
+                if start == -1 or end == -1:
+                    raise ValueError("No JSON object found.")
 
-            except Exception:
+                return json.loads(response[start : end + 1])
 
+            except (json.JSONDecodeError, ValueError):
                 return {
-
                     "summary": response,
-
                     "key_points": [],
-
-                    "references": []
-
+                    "references": [],
                 }
-    # ==========================================================
+
+
+# ==========================================================
 # LangGraph Research Node
 # ==========================================================
 
 def research_node(state: WorkflowState):
-
     task = state["current_task"]
 
     print("\n" + "=" * 60)
-    print(f"🔍 Research Agent Started")
+    print("🔍 Research Agent Started")
     print(f"Task : {task['title']}")
     print("=" * 60)
-
-    # ----------------------------------------------
-    # Runtime Tracking
-    # ----------------------------------------------
 
     state.setdefault("active_nodes", [])
     state.setdefault("completed_nodes", [])
     state.setdefault("execution_trace", [])
+    state.setdefault("failed_nodes", [])
 
     state["active_nodes"].append(task["title"])
 
-    researcher = Researcher(
-        state["llm"]
-    )
+    try:
+        researcher = Researcher(state["llm"])
 
-    system_prompt, user_prompt = researcher.build_prompt(
-        task
-    )
+        system_prompt, user_prompt = researcher.build_prompt(task)
 
-    response = researcher.call_llm(
-        system_prompt,
-        user_prompt,
-    )
+        llm_response = researcher.call_llm(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+        )
 
-    result = researcher.parse_response(
-        response
-    )
+        content = (
+            llm_response.get("content", "")
+            if isinstance(llm_response, dict)
+            else llm_response
+        )
 
-    state["completed_nodes"].append(
-        task["title"]
-    )
+        result = researcher.parse_response(content)
 
-    print(f"✅ Completed : {task['title']}")
+        usage = (
+            llm_response.get("usage", {})
+            if isinstance(llm_response, dict)
+            else {}
+        )
 
-    print("=" * 60)
+        prompt_tokens = usage.get("prompt_tokens", 0)
+        completion_tokens = usage.get("completion_tokens", 0)
+        total_tokens = usage.get("total_tokens", 0)
 
-    return {
+        if task["title"] in state["active_nodes"]:
+            state["active_nodes"].remove(task["title"])
 
-        "research_results": [
+        state["completed_nodes"].append(task["title"])
 
-            {
+        print(f"✅ Completed : {task['title']}")
+        print("=" * 60)
 
-                "task_id": task["id"],
+        return {
+            "research_results": [
+                {
+                    "task_id": task["id"],
+                    "title": task["title"],
+                    "specialization": task["specialization"],
+                    "result": result,
+                }
+            ],
+            "execution_trace": [
+                f"Research : {task['title']}"
+            ],
+            "completed_nodes": [
+                task["title"]
+            ],
+            "prompt_tokens": state.get("prompt_tokens", 0) + prompt_tokens,
+            "completion_tokens": (
+                state.get("completion_tokens", 0) + completion_tokens
+            ),
+            "total_tokens": state.get("total_tokens", 0) + total_tokens,
+        }
 
-                "title": task["title"],
+    except Exception as error:
+        if task["title"] in state["active_nodes"]:
+            state["active_nodes"].remove(task["title"])
 
-                "specialization": task["specialization"],
+        state["failed_nodes"].append(task["title"])
 
-                "result": result,
+        print(f"❌ Research failed for {task['title']}: {error}")
 
-            }
-
-        ],
-
-        "execution_trace": [
-
-            f"Research : {task['title']}"
-
-        ],
-
-        "completed_nodes": [
-
-            task["title"]
-
-        ]
-
-    }
+        return {
+            "research_results": [],
+            "execution_trace": [
+                f"Research Failed : {task['title']}"
+            ],
+            "failed_nodes": [
+                task["title"]
+            ],
+            "prompt_tokens": state.get("prompt_tokens", 0),
+            "completion_tokens": state.get("completion_tokens", 0),
+            "total_tokens": state.get("total_tokens", 0),
+        }

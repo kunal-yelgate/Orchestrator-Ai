@@ -14,7 +14,6 @@ class Summarizer:
         self.llm = llm_provider
 
     def build_prompt(self, research_results):
-
         system_prompt = """
 You are the Summarizer Agent.
 
@@ -23,26 +22,27 @@ Your job is to combine multiple research reports into one final report.
 Return ONLY valid JSON.
 
 {
-    "title":"",
-    "summary":"",
-    "key_points":[],
-    "conclusion":""
+    "title": "",
+    "summary": "",
+    "key_points": [],
+    "conclusion": ""
 }
 """
 
         content = ""
 
         for item in research_results:
+            result = item.get("result", {})
 
             content += f"""
 Task:
-{item["title"]}
+{item.get("title", "Untitled Task")}
 
 Specialization:
-{item["specialization"]}
+{item.get("specialization", "General")}
 
 Research:
-{item["result"]["summary"]}
+{result.get("summary", "No summary available.")}
 
 -----------------------
 """
@@ -57,12 +57,7 @@ Return ONLY JSON.
 
         return system_prompt, user_prompt
 
-    def call_llm(
-        self,
-        system_prompt,
-        user_prompt,
-    ):
-
+    def call_llm(self, system_prompt, user_prompt):
         return self.llm.generate(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
@@ -70,33 +65,25 @@ Return ONLY JSON.
         )
 
     def parse_response(self, response):
-
         try:
             return json.loads(response)
 
-        except Exception:
-
+        except json.JSONDecodeError:
             try:
-
                 start = response.find("{")
                 end = response.rfind("}")
 
-                return json.loads(
-                    response[start:end + 1]
-                )
+                if start == -1 or end == -1:
+                    raise ValueError("No JSON object found.")
 
-            except Exception:
+                return json.loads(response[start : end + 1])
 
+            except (json.JSONDecodeError, ValueError):
                 return {
-
                     "title": "Summary",
-
                     "summary": response,
-
                     "key_points": [],
-
-                    "conclusion": ""
-
+                    "conclusion": "",
                 }
 
 
@@ -105,51 +92,69 @@ Return ONLY JSON.
 # ==========================================================
 
 def summarizer_node(state: WorkflowState):
-
     print("\n========== Summarizer ==========\n")
 
     state["current_agent"] = "Summarizer"
 
-    research_results = state.get(
-        "research_results",
-        [],
-    )
+    research_results = state.get("research_results", [])
 
     if not research_results:
+        state["summary"] = {
+            "title": "No Results",
+            "summary": "All research agents failed to produce results.",
+            "key_points": [],
+            "conclusion": "",
+        }
 
-        raise Exception(
-            "No research results available."
-        )
+        state["status"] = "Summarizer Skipped"
+        state.setdefault("execution_trace", []).append("Summarizer")
 
-    summarizer = Summarizer(
-        state["llm"]
+        return state
+
+    summarizer = Summarizer(state["llm"])
+
+    system_prompt, user_prompt = summarizer.build_prompt(research_results)
+
+    llm_response = summarizer.call_llm(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
     )
 
-    system_prompt, user_prompt = summarizer.build_prompt(
-        research_results
+    content = (
+        llm_response.get("content", "")
+        if isinstance(llm_response, dict)
+        else llm_response
     )
 
-    response = summarizer.call_llm(
-        system_prompt,
-        user_prompt,
+    summary = summarizer.parse_response(content)
+
+    usage = (
+        llm_response.get("usage", {})
+        if isinstance(llm_response, dict)
+        else {}
     )
 
-    summary = summarizer.parse_response(
-        response
+    state["prompt_tokens"] = state.get("prompt_tokens", 0) + usage.get(
+        "prompt_tokens",
+        0,
+    )
+
+    state["completion_tokens"] = state.get(
+        "completion_tokens",
+        0,
+    ) + usage.get(
+        "completion_tokens",
+        0,
+    )
+
+    state["total_tokens"] = state.get("total_tokens", 0) + usage.get(
+        "total_tokens",
+        0,
     )
 
     state["summary"] = summary
-
     state["status"] = "Summarizer Completed"
-
-    state.setdefault(
-        "execution_trace",
-        []
-    )
-
-    state["execution_trace"].append(
-        "Summarizer"
-    )
+    state.setdefault("execution_trace", []).append("Summarizer")
 
     print("Summary Generated Successfully")
 
