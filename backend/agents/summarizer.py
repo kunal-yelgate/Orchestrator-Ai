@@ -13,92 +13,51 @@ class Summarizer:
     def __init__(self, llm_provider):
         self.llm = llm_provider
 
-    def build_prompt(self, research_results, failed_tasks=None):
-
+    def build_prompt(self, research_results):
         system_prompt = """
 You are the Summarizer Agent.
 
 Your job is to combine multiple research reports into one final report.
 
-<<<<<<< HEAD
 Return ONLY valid JSON.
-=======
-Some research tasks may be missing because that research agent failed --
-if so you will be told which tasks were skipped. Write the report using
-only the research you were given; do not invent content for the missing
-tasks, but you may briefly note in the summary that those areas were not
-covered.
-
-IMPORTANT RULES
-
-1. Return ONLY valid JSON.
-2. Do NOT use markdown.
-3. Do NOT wrap JSON inside ```json.
-4. Do NOT explain anything.
-
-Return EXACTLY:
->>>>>>> e94346cfcadddf8d394baf03670753eda76980c0
 
 {
-    "title":"",
-    "summary":"",
-    "key_points":[],
-    "conclusion":""
+    "title": "",
+    "summary": "",
+    "key_points": [],
+    "conclusion": ""
 }
 """
 
         content = ""
 
         for item in research_results:
+            result = item.get("result", {})
 
             content += f"""
 Task:
-{item["title"]}
+{item.get("title", "Untitled Task")}
 
 Specialization:
-{item["specialization"]}
+{item.get("specialization", "General")}
 
 Research:
-{item["result"]["summary"]}
+{result.get("summary", "No summary available.")}
 
 -----------------------
-"""
-
-        failed_block = ""
-
-        if failed_tasks:
-
-            failed_titles = ", ".join(
-                task.get("title") or task.get("task_id") or "unknown task"
-                for task in failed_tasks
-            )
-
-            failed_block = f"""
-The following research tasks failed and are NOT included above:
-{failed_titles}
 """
 
         user_prompt = f"""
 Combine all research reports into ONE comprehensive report.
 
 {content}
-<<<<<<< HEAD
 
 Return ONLY JSON.
-=======
-{failed_block}
-Return ONLY valid JSON.
->>>>>>> e94346cfcadddf8d394baf03670753eda76980c0
 """
 
         return system_prompt, user_prompt
 
-    def call_llm(
-        self,
-        system_prompt,
-        user_prompt,
-    ):
-
+    def call_llm(self, system_prompt, user_prompt):
         return self.llm.generate(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
@@ -106,33 +65,25 @@ Return ONLY valid JSON.
         )
 
     def parse_response(self, response):
-
         try:
             return json.loads(response)
 
-        except Exception:
-
+        except json.JSONDecodeError:
             try:
-
                 start = response.find("{")
                 end = response.rfind("}")
 
-                return json.loads(
-                    response[start:end + 1]
-                )
+                if start == -1 or end == -1:
+                    raise ValueError("No JSON object found.")
 
-            except Exception:
+                return json.loads(response[start : end + 1])
 
+            except (json.JSONDecodeError, ValueError):
                 return {
-
                     "title": "Summary",
-
                     "summary": response,
-
                     "key_points": [],
-
-                    "conclusion": ""
-
+                    "conclusion": "",
                 }
 
 
@@ -141,78 +92,69 @@ Return ONLY valid JSON.
 # ==========================================================
 
 def summarizer_node(state: WorkflowState):
-
     print("\n========== Summarizer ==========\n")
 
     state["current_agent"] = "Summarizer"
 
-    research_results = state.get(
-        "research_results",
-        [],
-    )
+    research_results = state.get("research_results", [])
 
     if not research_results:
+        state["summary"] = {
+            "title": "No Results",
+            "summary": "All research agents failed to produce results.",
+            "key_points": [],
+            "conclusion": "",
+        }
 
-<<<<<<< HEAD
-        raise Exception(
-            "No research results available."
-=======
-    try:
+        state["status"] = "Summarizer Skipped"
+        state.setdefault("execution_trace", []).append("Summarizer")
 
-        research_results = state.get("research_results", [])
+        return state
 
-        if not research_results:
-            raise Exception("No research results available.")
+    summarizer = Summarizer(state["llm"])
 
-        failed_tasks = state.get("research_failures", [])
+    system_prompt, user_prompt = summarizer.build_prompt(research_results)
 
-        summarizer = Summarizer(state["llm"])
-
-        system_prompt, user_prompt = summarizer.build_prompt(
-            research_results,
-            failed_tasks,
->>>>>>> e94346cfcadddf8d394baf03670753eda76980c0
-        )
-
-    summarizer = Summarizer(
-        state["llm"]
+    llm_response = summarizer.call_llm(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
     )
 
-    system_prompt, user_prompt = summarizer.build_prompt(
-        research_results
+    content = (
+        llm_response.get("content", "")
+        if isinstance(llm_response, dict)
+        else llm_response
     )
 
-    response = summarizer.call_llm(
-        system_prompt,
-        user_prompt,
+    summary = summarizer.parse_response(content)
+
+    usage = (
+        llm_response.get("usage", {})
+        if isinstance(llm_response, dict)
+        else {}
     )
 
-    summary = summarizer.parse_response(
-        response
+    state["prompt_tokens"] = state.get("prompt_tokens", 0) + usage.get(
+        "prompt_tokens",
+        0,
     )
 
-<<<<<<< HEAD
+    state["completion_tokens"] = state.get(
+        "completion_tokens",
+        0,
+    ) + usage.get(
+        "completion_tokens",
+        0,
+    )
+
+    state["total_tokens"] = state.get("total_tokens", 0) + usage.get(
+        "total_tokens",
+        0,
+    )
+
     state["summary"] = summary
-=======
-        # Surface partial-failure info on the summary itself so it's
-        # visible in the final output / API response without the client
-        # needing to separately inspect state["research_failures"].
-        summary["partial_failure"] = bool(failed_tasks)
-        summary["failed_tasks"] = failed_tasks
-
-        state["summary"] = summary
->>>>>>> e94346cfcadddf8d394baf03670753eda76980c0
-
     state["status"] = "Summarizer Completed"
-
-    state.setdefault(
-        "execution_trace",
-        []
-    )
-
-    state["execution_trace"].append(
-        "Summarizer"
-    )
+    state.setdefault("execution_trace", []).append("Summarizer")
 
     print("Summary Generated Successfully")
 
