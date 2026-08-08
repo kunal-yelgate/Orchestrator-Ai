@@ -1,26 +1,11 @@
 import WorkflowGraph from "../components/WorkflowGraph";
 import { orchestrate } from "../services/api";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 const historyItems = [
-  {
-    title: "Product launch plan",
-    time: "10m ago",
-    preview: "Research completed and summarized",
-    tag: "Growth",
-  },
-  {
-    title: "Market analysis",
-    time: "1h ago",
-    preview: "Verified with three models",
-    tag: "Strategy",
-  },
-  {
-    title: "Customer support flow",
-    time: "Yesterday",
-    preview: "Planner routed the request",
-    tag: "Ops",
-  },
+  { title: "Product launch plan", time: "10m ago", preview: "Research completed and summarized", tag: "Growth" },
+  { title: "Market analysis", time: "1h ago", preview: "Verified with three models", tag: "Strategy" },
+  { title: "Customer support flow", time: "Yesterday", preview: "Planner routed the request", tag: "Ops" },
 ];
 
 const workflowStages = [
@@ -33,9 +18,9 @@ const workflowStages = [
 ];
 
 const modelPool = [
-  { name: "GPT-4.1", role: "Planning", color: "#10b981" },
-  { name: "Gemini 2.5 Pro", role: "Research", color: "#818cf8" },
-  { name: "Claude 3.7", role: "Synthesis", color: "#f59e0b" },
+  { name: "GPT-4.1", role: "Planning" },
+  { name: "Gemini 2.5 Pro", role: "Research" },
+  { name: "Claude 3.7", role: "Synthesis" },
 ];
 
 const promptSuggestions = [
@@ -54,11 +39,13 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
       meta: "Orchestrator ready",
     },
   ]);
+
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [activeStage, setActiveStage] = useState("Planner");
   const [selectedModel, setSelectedModel] = useState("Auto");
   const [workflow, setWorkflow] = useState(null);
+
   const [metrics, setMetrics] = useState({
     execution_time: 0,
     total_tokens: 0,
@@ -75,8 +62,13 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isThinking]);
 
-  const activeStageObj = workflowStages.find((stage) => stage.name === activeStage);
-  const activeIndex = workflowStages.findIndex((stage) => stage.name === activeStage);
+  const activeStageObj = workflowStages.find(
+    (stage) => stage.name === activeStage
+  );
+
+  const activeIndex = workflowStages.findIndex(
+    (stage) => stage.name === activeStage
+  );
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -85,14 +77,16 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
 
     const goal = input.trim();
 
-    const userMessage = {
-      id: Date.now(),
-      role: "user",
-      text: goal,
-      meta: `Model: ${selectedModel}`,
-    };
+    setMessages((previousMessages) => [
+      ...previousMessages,
+      {
+        id: Date.now(),
+        role: "user",
+        text: goal,
+        meta: `Model: ${selectedModel}`,
+      },
+    ]);
 
-    setMessages((previousMessages) => [...previousMessages, userMessage]);
     setInput("");
     setIsThinking(true);
 
@@ -137,28 +131,24 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
 
       let reply = "Workflow completed successfully.";
 
-      if (result.summary) {
-        if (typeof result.summary === "string") {
-          reply = result.summary;
-        } else if (result.summary.summary) {
-          reply = result.summary.summary;
-        }
+      if (typeof result.summary === "string") {
+        reply = result.summary;
+      } else if (result.summary?.summary) {
+        reply = result.summary.summary;
       }
-
-      const assistantMessage = {
-        id: Date.now() + 1,
-        role: "assistant",
-        text: reply,
-        meta: result.verification?.verified
-          ? `Verified ✅ (${Math.round(
-              (result.verification.confidence || 0) * 100
-            )}%)`
-          : "Completed",
-      };
 
       setMessages((previousMessages) => [
         ...previousMessages,
-        assistantMessage,
+        {
+          id: Date.now() + 1,
+          role: "assistant",
+          text: reply,
+          meta: result.verification?.verified
+            ? `Verified ✅ (${Math.round(
+                (result.verification.confidence || 0) * 100
+              )}%)`
+            : "Completed",
+        },
       ]);
     } catch (error) {
       console.error(error);
@@ -181,9 +171,7 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
     <div className="app-shell">
       <aside className="sidebar" aria-label="Navigation sidebar">
         <div className="brand-block">
-          <div className="brand-icon" aria-hidden="true">
-            ✦
-          </div>
+          <div className="brand-icon" aria-hidden="true">✦</div>
           <div>
             <p className="eyebrow">Orchestrator AI</p>
             <h1>Multi-model workspace</h1>
@@ -192,6 +180,7 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
 
         <div className="sidebar-card">
           <div className="section-title">Recent history</div>
+
           <div className="history-list" role="list">
             {historyItems.map((item) => (
               <button
@@ -254,6 +243,7 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
             <div className="active-stage-icon" aria-hidden="true">
               {activeStageObj?.icon}
             </div>
+
             <div>
               <strong className="active-stage-name">{activeStage}</strong>
               <p className="active-stage-detail">{activeStageObj?.detail}</p>
@@ -298,9 +288,7 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
                 currentUser?.name || currentUser?.email
               }`}
             >
-              {currentUser?.name
-                ? currentUser.name
-                : currentUser?.email?.split("@")[0]}
+              {currentUser?.name || currentUser?.email?.split("@")[0]}
             </div>
 
             <label htmlFor="model-select" className="sr-only">
@@ -372,13 +360,8 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
               ))}
 
               {isThinking && (
-                <div
-                  className="message-row assistant"
-                  aria-label="Orchestrator is thinking"
-                >
-                  <div className="avatar" aria-hidden="true">
-                    AI
-                  </div>
+                <div className="message-row assistant">
+                  <div className="avatar" aria-hidden="true">AI</div>
 
                   <div className="bubble thinking">
                     <div className="message-meta">
@@ -397,29 +380,20 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
               <div ref={messagesEndRef} />
             </div>
 
-            <div
-              className="prompt-row"
-              role="group"
-              aria-label="Prompt suggestions"
-            >
+            <div className="prompt-row" role="group" aria-label="Prompt suggestions">
               {promptSuggestions.map((suggestion) => (
                 <button
                   key={suggestion}
                   type="button"
                   className="prompt-chip"
                   onClick={() => setInput(suggestion)}
-                  aria-label={`Use prompt: ${suggestion}`}
                 >
                   {suggestion}
                 </button>
               ))}
             </div>
 
-            <form
-              className="composer"
-              onSubmit={handleSubmit}
-              aria-label="Message composer"
-            >
+            <form className="composer" onSubmit={handleSubmit}>
               <input
                 id="chat-input"
                 type="text"
@@ -435,7 +409,6 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
                 id="send-btn"
                 type="submit"
                 disabled={isThinking || !input.trim()}
-                aria-label="Send message"
               >
                 {isThinking ? "…" : "Send ↗"}
               </button>
@@ -449,6 +422,31 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
                 activeStage={activeStage}
                 tasks={workflow?.tasks || []}
               />
+            </div>
+
+            <div className="metric-card">
+              <h4>Retries</h4>
+              <p>{workflow?.retry_count || 0}</p>
+            </div>
+
+            <div className="metric-card">
+              <h4>Budget</h4>
+
+              <p>
+                {workflow?.budget?.used_tokens || 0}
+                {" / "}
+                {workflow?.budget?.max_tokens || 0}
+              </p>
+
+              <div className="budget-bar">
+                <div
+                  className="budget-fill"
+                  style={{
+                    width: `${workflow?.budget?.utilization || 0}%`,
+                    width: `${Math.min(workflow?.budget?.utilization || 0, 100)}%`,
+                  }}
+                />
+              </div>
             </div>
 
             <div className="info-card">

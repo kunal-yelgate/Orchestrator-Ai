@@ -22,7 +22,8 @@ class OrchestrateResponse(BaseModel):
     estimated_cost: float = 0.0
     provider: str = ""
     model: str = ""
-
+    retry_count: int = 0
+    budget: Dict[str, Any] = Field(default_factory=dict)
 
 class UploadResponse(BaseModel):
     path: str

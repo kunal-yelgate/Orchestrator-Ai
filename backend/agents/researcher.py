@@ -1,6 +1,7 @@
 import json
 
 from graph.state import WorkflowState
+from utils.permission_manager import PermissionManager
 
 
 class Researcher:
@@ -101,6 +102,15 @@ def research_node(state: WorkflowState):
 
     state["active_nodes"].append(task["title"])
 
+    PermissionManager.require_tool(
+        "Researcher",
+        "llm",
+    )
+
+    PermissionManager.require_network(
+        "Researcher",
+    )
+
     try:
         researcher = Researcher(state["llm"])
 
@@ -152,11 +162,9 @@ def research_node(state: WorkflowState):
             "completed_nodes": [
                 task["title"]
             ],
-            "prompt_tokens": state.get("prompt_tokens", 0) + prompt_tokens,
-            "completion_tokens": (
-                state.get("completion_tokens", 0) + completion_tokens
-            ),
-            "total_tokens": state.get("total_tokens", 0) + total_tokens,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
         }
 
     except Exception as error:
@@ -175,7 +183,7 @@ def research_node(state: WorkflowState):
             "failed_nodes": [
                 task["title"]
             ],
-            "prompt_tokens": state.get("prompt_tokens", 0),
-            "completion_tokens": state.get("completion_tokens", 0),
-            "total_tokens": state.get("total_tokens", 0),
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
         }

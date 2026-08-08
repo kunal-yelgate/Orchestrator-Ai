@@ -91,7 +91,7 @@ class WorkflowState(TypedDict):
         List[str],
         operator.add,
     ]
-
+    retry_count: int
     # =====================================================
     # Token & Cost Tracking
     # =====================================================

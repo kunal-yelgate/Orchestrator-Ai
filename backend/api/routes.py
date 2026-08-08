@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 
 from api.schemas import OrchestrateRequest, OrchestrateResponse
+from config.agent_config import AGENT_CONFIGS
 from graph.builder import build_workflow
 from llm.provider_factory import get_provider
 
@@ -103,6 +104,7 @@ def create_state(goal: str, provider: str):
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "estimated_cost": 0.0,
+        "retry_count": 0,
         "approved": False,
         "workflow_version": "1.0",
     }
@@ -123,6 +125,15 @@ def orchestrate(request: OrchestrateRequest):
 
         result = workflow.invoke(state)
 
+        max_tokens = AGENT_CONFIGS["Researcher"].max_tokens
+        used = result.get("total_tokens", 0)
+        remaining = max(0, max_tokens - used)
+        utilization = (
+            round((used / max_tokens) * 100, 2)
+            if max_tokens
+            else 0.0
+        )
+
         return OrchestrateResponse(
             workflow_id=result["workflow_id"],
             tasks=result.get("tasks", []),
@@ -136,6 +147,13 @@ def orchestrate(request: OrchestrateRequest):
             estimated_cost=result.get("estimated_cost", 0.0),
             provider=result.get("provider", ""),
             model=result.get("model", ""),
+            retry_count=result.get("retry_count", 0),
+            budget={
+                "max_tokens": max_tokens,
+                "used_tokens": used,
+                "remaining_tokens": remaining,
+                "utilization": utilization,
+            },
         )
 
     except Exception as error:
