@@ -1,6 +1,7 @@
 import WorkflowGraph from "../components/WorkflowGraph";
-import { orchestrate } from "../services/api";
-import React, { useState, useRef, useEffect } from "react";
+import { STAGE_TO_AGENT, AGENT_TO_STAGE } from "../lib/workflowStages";
+import { orchestrate, uploadFiles, fetchCheckpoints, rollbackWorkflow } from "../services/api";
+import { useState, useRef, useEffect } from "react";
 
 const historyItems = [
   {
@@ -36,6 +37,7 @@ const modelPool = [
   { name: "GPT-4.1", role: "Planning", color: "#10b981" },
   { name: "Gemini 2.5 Pro", role: "Research", color: "#818cf8" },
   { name: "Claude 3.7", role: "Synthesis", color: "#f59e0b" },
+  { name: "Llama 3.1", role: "Research", color: "#f5a9f5" },
 ];
 
 const promptSuggestions = [
@@ -44,6 +46,19 @@ const promptSuggestions = [
   "Summarize this workflow clearly",
   "Analyze market competitors",
 ];
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Browser speech recognition (Chrome/Edge: webkitSpeechRecognition; some
+// browsers expose the unprefixed SpeechRecognition instead).
+const SpeechRecognitionAPI =
+  typeof window !== "undefined"
+    ? window.SpeechRecognition || window.webkitSpeechRecognition
+    : null;
 
 const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
   const [messages, setMessages] = useState([
@@ -71,32 +86,122 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
 
   const messagesEndRef = useRef(null);
 
+<<<<<<< HEAD
+=======
+  // ── Attachments (upload file + prompt together) ─────────────────
+  const [attachedFiles, setAttachedFiles] = useState([]);
+  const fileInputRef = useRef(null);
+
+  // ── Voice input ───────────────────────────────────────────────────
+  const [isRecording, setIsRecording] = useState(false);
+  const [voiceSupported] = useState(!!SpeechRecognitionAPI);
+  const recognitionRef = useRef(null);
+
+  // ── Checkpoint revert ────────────────────────────────────────────
+  const [currentWorkflowId, setCurrentWorkflowId] = useState(null);
+  const [checkpointPanelOpen, setCheckpointPanelOpen] = useState(false);
+  const [checkpoints, setCheckpoints] = useState([]);
+  const [checkpointsLoading, setCheckpointsLoading] = useState(false);
+  const [checkpointsError, setCheckpointsError] = useState("");
+  const [revertTargetStage, setRevertTargetStage] = useState(null);
+  const [revertingFile, setRevertingFile] = useState(null);
+
+  // Auto-scroll to bottom on new messages
+>>>>>>> e94346cfcadddf8d394baf03670753eda76980c0
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isThinking]);
 
+<<<<<<< HEAD
   const activeStageObj = workflowStages.find((stage) => stage.name === activeStage);
   const activeIndex = workflowStages.findIndex((stage) => stage.name === activeStage);
+=======
+  // Set up speech recognition once
+  useEffect(() => {
+    if (!SpeechRecognitionAPI) return;
+
+    const recognition = new SpeechRecognitionAPI();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
+
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map((r) => r[0].transcript)
+        .join(" ");
+      setInput((prev) => (prev ? `${prev.trim()} ${transcript}` : transcript));
+    };
+
+    recognition.onerror = () => setIsRecording(false);
+    recognition.onend = () => setIsRecording(false);
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      recognition.onresult = null;
+      recognition.onerror = null;
+      recognition.onend = null;
+    };
+  }, []);
+
+  const toggleRecording = () => {
+    if (!recognitionRef.current) return;
+
+    if (isRecording) {
+      recognitionRef.current.stop();
+      setIsRecording(false);
+    } else {
+      try {
+        recognitionRef.current.start();
+        setIsRecording(true);
+      } catch {
+        // start() throws if already started — ignore
+      }
+    }
+  };
+
+  // ── Attachments handlers ───────────────────────────────────────────
+  const handleAttachClick = () => fileInputRef.current?.click();
+
+  const handleFilesSelected = (event) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length) {
+      setAttachedFiles((prev) => [...prev, ...files]);
+    }
+    event.target.value = ""; // allow re-selecting the same file
+  };
+
+  const removeAttachedFile = (index) => {
+    setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const activeStageObj = workflowStages.find((s) => s.name === activeStage);
+  const activeIndex = workflowStages.findIndex((s) => s.name === activeStage);
+>>>>>>> e94346cfcadddf8d394baf03670753eda76980c0
 
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (!input.trim() || isThinking) return;
+    if ((!input.trim() && attachedFiles.length === 0) || isThinking) return;
 
-    const goal = input.trim();
+    const goal = input.trim() || "Analyze the attached file(s).";
+    const filesForThisMessage = attachedFiles;
 
     const userMessage = {
       id: Date.now(),
       role: "user",
       text: goal,
       meta: `Model: ${selectedModel}`,
+      attachments: filesForThisMessage.map((f) => ({ name: f.name, size: f.size })),
     };
 
     setMessages((previousMessages) => [...previousMessages, userMessage]);
     setInput("");
+    setAttachedFiles([]);
     setIsThinking(true);
 
     try {
+<<<<<<< HEAD
       setActiveStage("Planner");
       await new Promise((resolve) => setTimeout(resolve, 300));
 
@@ -137,6 +242,58 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
 
       let reply = "Workflow completed successfully.";
 
+=======
+      // Stage 1
+      setActiveStage("Planner");
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Upload any attached files first, then reference them in orchestrate()
+      let documents = [];
+      if (filesForThisMessage.length > 0) {
+        documents = await uploadFiles(filesForThisMessage);
+      }
+
+      // Stage 2
+      setActiveStage("Task Splitter");
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      const provider =
+        selectedModel === "Auto"
+          ? "groq"
+          : selectedModel.toLowerCase();
+
+      // ===========================
+      // Call FastAPI Backend
+      // ===========================
+      const result = await orchestrate(goal, provider, documents);
+
+      console.log("Backend Response:", result);
+
+      setCurrentWorkflowId(result.workflow_id || null);
+
+      // Stage 3
+      setActiveStage("Research Agent 1");
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Stage 4
+      setActiveStage("Research Agent 2");
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Stage 5
+      setActiveStage("Summarizer");
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Stage 6
+      setActiveStage("Verifier");
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Re-sync to wherever the run actually landed (in case it stopped early)
+      if (result.last_agent_name && AGENT_TO_STAGE[result.last_agent_name]) {
+        setActiveStage(AGENT_TO_STAGE[result.last_agent_name]);
+      }
+
+      let reply = "Workflow completed successfully.";
+>>>>>>> e94346cfcadddf8d394baf03670753eda76980c0
       if (result.summary) {
         if (typeof result.summary === "string") {
           reply = result.summary;
@@ -173,6 +330,112 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
         },
       ]);
     } finally {
+      setIsThinking(false);
+    }
+  };
+
+  // ── Checkpoint revert handlers ──────────────────────────────────────
+
+  const openCheckpointPanel = async (stage) => {
+    if (!currentWorkflowId) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          role: "assistant",
+          text: "There's no run to revert yet — send a prompt first, then click a graph node to roll back to that step.",
+          meta: "Checkpoints",
+        },
+      ]);
+      return;
+    }
+
+    setRevertTargetStage(stage);
+    setCheckpointPanelOpen(true);
+    setCheckpointsLoading(true);
+    setCheckpointsError("");
+
+    try {
+      const list = await fetchCheckpoints(currentWorkflowId);
+      setCheckpoints(list);
+    } catch (error) {
+      setCheckpointsError(error.message || "Unable to load checkpoints.");
+      setCheckpoints([]);
+    } finally {
+      setCheckpointsLoading(false);
+    }
+  };
+
+  const closeCheckpointPanel = () => {
+    setCheckpointPanelOpen(false);
+    setRevertTargetStage(null);
+    setCheckpointsError("");
+  };
+
+  const handleRevert = async (checkpoint) => {
+    if (!currentWorkflowId) return;
+
+    setRevertingFile(checkpoint.file);
+    setIsThinking(true);
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        role: "user",
+        text: `↩ Reverted to "${checkpoint.agent_name}" (step ${checkpoint.step_index}) — continuing execution from there.`,
+        meta: "Checkpoint revert",
+      },
+    ]);
+
+    try {
+      const result = await rollbackWorkflow(currentWorkflowId, checkpoint.file);
+
+      console.log("Rollback response:", result);
+
+      setCurrentWorkflowId(result.workflow_id || currentWorkflowId);
+
+      if (result.last_agent_name && AGENT_TO_STAGE[result.last_agent_name]) {
+        setActiveStage(AGENT_TO_STAGE[result.last_agent_name]);
+      }
+
+      let reply = "Workflow resumed and completed successfully.";
+      if (result.summary) {
+        if (typeof result.summary === "string") {
+          reply = result.summary;
+        } else if (result.summary.summary) {
+          reply = result.summary.summary;
+        }
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          role: "assistant",
+          text: reply,
+          meta: result.verification?.verified
+            ? `Verified ✅ (${Math.round(
+                (result.verification.confidence || 0) * 100
+              )}%) — resumed run`
+            : "Completed — resumed run",
+        },
+      ]);
+
+      closeCheckpointPanel();
+    } catch (error) {
+      console.error(error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          role: "assistant",
+          text: error.message || "Failed to revert to that checkpoint.",
+          meta: "Error",
+        },
+      ]);
+    } finally {
+      setRevertingFile(null);
       setIsThinking(false);
     }
   };
@@ -343,6 +606,7 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
         </header>
 
         <div className="workspace-grid">
+<<<<<<< HEAD
           <section className="chat-panel" aria-label="Chat conversation">
             <div
               className="message-list"
@@ -350,6 +614,24 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
               aria-live="polite"
               aria-label="Conversation messages"
             >
+=======
+          {/* ── Chat Panel ───────────────────────────────────────── */}
+          <section className="chat-panel" aria-label="Chat Conversation">
+            <div className="message-list" role="log" aria-live="polite">
+
+              {/* Display Header if only initial message */}
+              {messages.length <= 1 && (
+                <div className="empty-state-container">
+                  <div className="empty-hero">
+                    <span className="empty-hero-icon">✦</span>
+                    <h3>Enterprise AI Orchestration</h3>
+                    <p>Dispatch complex research, synthesis, and verification tasks across multiple LLMs automatically.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Message Rows */}
+>>>>>>> e94346cfcadddf8d394baf03670753eda76980c0
               {messages.map((message) => (
                 <div
                   key={message.id}
@@ -367,6 +649,15 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
                       <div className="message-meta">{message.meta}</div>
                     )}
                     <p>{message.text}</p>
+                    {message.attachments && message.attachments.length > 0 && (
+                      <div className="message-attachments">
+                        {message.attachments.map((a, i) => (
+                          <span key={i} className="attachment-chip">
+                            📎 {a.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -415,17 +706,74 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
               ))}
             </div>
 
+            {attachedFiles.length > 0 && (
+              <div className="attachment-row" aria-label="Attached files">
+                {attachedFiles.map((file, i) => (
+                  <span key={`${file.name}-${i}`} className="attachment-chip removable">
+                    📎 {file.name}
+                    <small>{formatBytes(file.size)}</small>
+                    <button
+                      type="button"
+                      className="attachment-remove"
+                      onClick={() => removeAttachedFile(i)}
+                      aria-label={`Remove ${file.name}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
             <form
               className="composer"
               onSubmit={handleSubmit}
               aria-label="Message composer"
             >
               <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={handleFilesSelected}
+                style={{ display: "none" }}
+                aria-hidden="true"
+              />
+
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={handleAttachClick}
+                disabled={isThinking}
+                aria-label="Attach a file"
+                title="Attach a file"
+              >
+                📎
+              </button>
+
+              {voiceSupported && (
+                <button
+                  type="button"
+                  className={`icon-btn ${isRecording ? "recording" : ""}`}
+                  onClick={toggleRecording}
+                  disabled={isThinking}
+                  aria-label={isRecording ? "Stop voice input" : "Start voice input"}
+                  aria-pressed={isRecording}
+                  title={isRecording ? "Stop voice input" : "Speak your prompt"}
+                >
+                  {isRecording ? "⏺" : "🎤"}
+                </button>
+              )}
+
+              <input
                 id="chat-input"
                 type="text"
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
-                placeholder="Ask the orchestrator to analyze, compare, or synthesize…"
+                placeholder={
+                  isRecording
+                    ? "Listening…"
+                    : "Ask the orchestrator to analyze, compare, or synthesize…"
+                }
                 aria-label="Type your message"
                 disabled={isThinking}
                 autoComplete="off"
@@ -434,7 +782,7 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
               <button
                 id="send-btn"
                 type="submit"
-                disabled={isThinking || !input.trim()}
+                disabled={isThinking || (!input.trim() && attachedFiles.length === 0)}
                 aria-label="Send message"
               >
                 {isThinking ? "…" : "Send ↗"}
@@ -447,7 +795,12 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
               <div className="section-title">LangGraph Flow</div>
               <WorkflowGraph
                 activeStage={activeStage}
+<<<<<<< HEAD
                 tasks={workflow?.tasks || []}
+=======
+                onNodeClick={openCheckpointPanel}
+                revertableStage={revertTargetStage}
+>>>>>>> e94346cfcadddf8d394baf03670753eda76980c0
               />
             </div>
 
@@ -471,6 +824,85 @@ const Dashboard = ({ backendStatus, currentUser = {}, onBack }) => {
           </aside>
         </div>
       </main>
+
+      {/* ── Checkpoint revert panel ─────────────────────────────── */}
+      {checkpointPanelOpen && (
+        <div
+          className="checkpoint-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Revert to checkpoint"
+          onClick={closeCheckpointPanel}
+        >
+          <div className="checkpoint-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="checkpoint-panel-header">
+              <div>
+                <div className="section-title">Revert to checkpoint</div>
+                <p className="checkpoint-panel-sub">
+                  {revertTargetStage
+                    ? `Node clicked: ${revertTargetStage}`
+                    : "Choose a step to roll back to"}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="checkpoint-close"
+                onClick={closeCheckpointPanel}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            {checkpointsLoading && (
+              <div className="checkpoint-loading">Loading checkpoints…</div>
+            )}
+
+            {checkpointsError && (
+              <div className="global-error" role="alert">
+                <span aria-hidden="true">⚠</span> {checkpointsError}
+              </div>
+            )}
+
+            {!checkpointsLoading && !checkpointsError && checkpoints.length === 0 && (
+              <p className="checkpoint-empty">No checkpoints saved yet for this run.</p>
+            )}
+
+            <ul className="checkpoint-list">
+              {checkpoints.map((cp) => {
+                const isTarget =
+                  revertTargetStage &&
+                  STAGE_TO_AGENT[revertTargetStage] === cp.agent_name;
+                const isBusy = revertingFile === cp.file;
+
+                return (
+                  <li
+                    key={cp.file}
+                    className={`checkpoint-item ${isTarget ? "target" : ""}`}
+                  >
+                    <div className="checkpoint-item-info">
+                      <strong>
+                        Step {cp.step_index} — {cp.agent_name}
+                      </strong>
+                      <small>{cp.timestamp}</small>
+                      {cp.status && <span className="checkpoint-status">{cp.status}</span>}
+                    </div>
+                    <button
+                      type="button"
+                      className="secondary-btn compact"
+                      onClick={() => handleRevert(cp)}
+                      disabled={isThinking}
+                      aria-label={`Revert to ${cp.agent_name} and continue`}
+                    >
+                      {isBusy ? "Reverting…" : "Revert & continue →"}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

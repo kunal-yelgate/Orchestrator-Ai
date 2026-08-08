@@ -1732,3 +1732,201 @@
 }
 
 .back-link:hover { color: var(--text-secondary); }
+
+/* ── Composer icon buttons (attach / mic) ─────────────────────────── */
+.icon-btn {
+  border: 1px solid var(--border-dim);
+  border-radius: var(--r-lg);
+  background: transparent;
+  color: var(--text-secondary);
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all var(--t-base);
+}
+
+.icon-btn:hover:not(:disabled) {
+  border-color: rgba(124,58,237,0.45);
+  background: rgba(124,58,237,0.1);
+  color: #c084fc;
+}
+
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.icon-btn.recording {
+  border-color: rgba(239,68,68,0.6);
+  background: rgba(239,68,68,0.15);
+  color: #f87171;
+  animation: mic-pulse 1.2s infinite ease-in-out;
+}
+
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(239,68,68,0); }
+}
+
+/* ── Attachment chips ──────────────────────────────────────────────── */
+.attachment-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+}
+
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-dim);
+  border-radius: var(--r-full);
+  padding: 5px 10px;
+  background: rgba(124,58,237,0.08);
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+}
+
+.attachment-chip small {
+  color: var(--text-tertiary);
+  font-size: 0.68rem;
+}
+
+.attachment-chip.removable {
+  padding-right: 6px;
+}
+
+.attachment-remove {
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.attachment-remove:hover {
+  color: #f87171;
+}
+
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--space-2);
+}
+
+/* ── Checkpoint revert panel ──────────────────────────────────────── */
+.checkpoint-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5,5,10,0.6);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--space-4);
+}
+
+.checkpoint-panel {
+  width: 100%;
+  max-width: 480px;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--r-xl);
+  padding: var(--space-4);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+
+.checkpoint-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.checkpoint-panel-sub {
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  margin: 4px 0 0;
+}
+
+.checkpoint-close {
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.checkpoint-close:hover {
+  color: var(--text-primary);
+}
+
+.checkpoint-loading,
+.checkpoint-empty {
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
+  padding: var(--space-3) 0;
+}
+
+.checkpoint-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.checkpoint-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.02);
+}
+
+.checkpoint-item.target {
+  border-color: rgba(245,158,11,0.5);
+  background: rgba(245,158,11,0.06);
+}
+
+.checkpoint-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.checkpoint-item-info strong {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.checkpoint-item-info small {
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+.checkpoint-status {
+  font-size: 0.68rem;
+  color: #34d399;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

@@ -32,6 +32,9 @@
     box-shadow:
         0 4px 12px rgba(0,0,0,.25);
 
+    cursor:pointer;
+    outline:none;
+
 }
 
 .workflow-node:hover{
@@ -42,6 +45,25 @@
 
     box-shadow:
         0 10px 20px rgba(124,58,237,.25);
+
+}
+
+.workflow-node:focus-visible{
+
+    border-color:#9d7cff;
+
+    box-shadow:
+        0 0 0 3px rgba(157,124,255,.35);
+
+}
+
+.workflow-node.revert-target{
+
+    border-color:#f59e0b;
+
+    box-shadow:
+        0 0 0 3px rgba(245,158,11,.35),
+        0 10px 20px rgba(245,158,11,.2);
 
 }
 
@@ -146,6 +168,22 @@
     align-items:flex-start;
 
     gap:20px;
+
+}
+
+.workflow-hint{
+
+    margin-top:4px;
+
+    font-size:11px;
+
+    text-align:center;
+
+    color:#8b8fa3;
+
+    line-height:1.4;
+
+    max-width:200px;
 
 }
 

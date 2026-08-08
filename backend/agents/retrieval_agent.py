@@ -3,20 +3,30 @@
 retrieval_agent.py
 
 Single-file Retrieval Agent (V1)
-Supports:
+Supports loading text from:
 - PDF (.pdf)
 - Text (.txt, .md)
+- CSV (.csv)
+- SQLite database files (.db, .sqlite, .sqlite3)
+- Any web URL (HTML pages, plain text, JSON, etc.)
+- GitHub links — a single file ('blob') URL, or a repo root URL
+  (walks the default branch and pulls in text/code files)
 
 Requirements:
-pip install pypdf openai
+pip install pypdf openai requests
 
 Set:
 GROQ_API_KEY=<your key>
+GITHUB_TOKEN=<optional, raises GitHub API rate limits>
 """
 
 import os
+import csv
+import sqlite3
 from pathlib import Path
 from difflib import SequenceMatcher
+from html.parser import HTMLParser
+from urllib.parse import urlparse
 
 import json
 from datetime import datetime
@@ -24,6 +34,11 @@ import hashlib
 
 from openai import OpenAI
 from pypdf import PdfReader
+
+try:
+    import requests
+except ImportError:
+    requests = None
 
 
 # -----------------------
@@ -38,7 +53,230 @@ BASE_URL = "https://api.groq.com/openai/v1"
 # open-ended LLM research.
 NOT_FOUND_MESSAGE = "I couldn't find that information in the supplied source."
 
-SUPPORTED_EXTENSIONS = {".pdf", ".txt", ".md"}
+# Local file types load_text() knows how to open.
+SUPPORTED_EXTENSIONS = {".pdf", ".txt", ".md", ".csv", ".db", ".sqlite", ".sqlite3"}
+
+# File extensions worth pulling out of a GitHub repo (skip binaries/assets).
+GITHUB_TEXT_EXTENSIONS = {
+    ".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".c", ".cpp", ".h", ".hpp",
+    ".go", ".rs", ".rb", ".php", ".cs", ".sql", ".sh", ".yaml", ".yml",
+    ".json", ".txt", ".md", ".rst", ".toml", ".ini", ".cfg",
+}
+
+MAX_GITHUB_FILES = 25          # cap how many repo files we pull in
+MAX_DB_ROWS_PER_TABLE = 500    # cap rows dumped per SQLite table
+MAX_REMOTE_BYTES = 2_000_000   # 2 MB safety cap per fetched URL/file
+
+
+# ==========================================================
+# Source-type detection
+# ==========================================================
+
+def is_url(source: str) -> bool:
+    return source.lower().startswith(("http://", "https://"))
+
+
+def is_github_url(source: str) -> bool:
+    return is_url(source) and "github.com" in urlparse(source).netloc.lower()
+
+
+def _require_requests():
+    if requests is None:
+        raise RuntimeError(
+            "The 'requests' package is required for URL/GitHub retrieval. "
+            "Install it with: pip install requests"
+        )
+
+
+def _github_headers():
+    token = os.getenv("GITHUB_TOKEN")
+    return {"Authorization": f"token {token}"} if token else {}
+
+
+def _fetch(url: str, headers=None):
+    _require_requests()
+    resp = requests.get(url, headers=headers or {}, timeout=20)
+    resp.raise_for_status()
+    return resp
+
+
+class _HTMLTextExtractor(HTMLParser):
+    """Minimal HTML-to-text stripper — avoids adding a bs4 dependency."""
+
+    _SKIP_TAGS = {"script", "style", "noscript"}
+
+    def __init__(self):
+        super().__init__()
+        self._skip = False
+        self.parts = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag in self._SKIP_TAGS:
+            self._skip = True
+
+    def handle_endtag(self, tag):
+        if tag in self._SKIP_TAGS:
+            self._skip = False
+
+    def handle_data(self, data):
+        if not self._skip:
+            text = data.strip()
+            if text:
+                self.parts.append(text)
+
+    def get_text(self) -> str:
+        return "\n".join(self.parts)
+
+
+def html_to_text(html: str) -> str:
+    parser = _HTMLTextExtractor()
+    parser.feed(html)
+    return parser.get_text()
+
+
+def load_url(url: str) -> str:
+    """
+    Fetches a web page and returns its visible text. HTML is stripped of
+    tags/scripts/styles; anything else (plain text, JSON, etc.) is
+    returned as-is.
+    """
+
+    resp = _fetch(url)
+
+    content_type = resp.headers.get("Content-Type", "").lower()
+    raw = resp.content[:MAX_REMOTE_BYTES]
+
+    looks_like_html = "html" in content_type or raw.lstrip()[:15].lower().startswith(b"<!doctype html") or raw.lstrip()[:5].lower() == b"<html"
+
+    decoded = raw.decode(resp.encoding or "utf-8", errors="ignore")
+
+    return html_to_text(decoded) if looks_like_html else decoded
+
+
+def _github_blob_to_raw(url: str):
+    """
+    Converts a GitHub 'blob' file URL into its raw.githubusercontent.com
+    equivalent. Returns None if the URL isn't a single-file blob link.
+
+    https://github.com/{owner}/{repo}/blob/{branch}/{path}
+      -> https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}
+    """
+
+    parts = urlparse(url).path.strip("/").split("/")
+
+    if len(parts) < 5 or parts[2] != "blob":
+        return None
+
+    owner, repo, _, branch, *path_parts = parts
+
+    return f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{'/'.join(path_parts)}"
+
+
+def load_github(url: str) -> str:
+    """
+    Supports two kinds of GitHub links:
+
+    1. A single file ('blob') URL — fetched directly as raw text.
+    2. A repo root URL (https://github.com/{owner}/{repo}) — walks the
+       default branch via the GitHub API and concatenates the text/code
+       files it finds, capped at MAX_GITHUB_FILES so this stays bounded.
+    """
+
+    raw_url = _github_blob_to_raw(url)
+
+    if raw_url:
+        resp = _fetch(raw_url, headers=_github_headers())
+        return resp.content[:MAX_REMOTE_BYTES].decode("utf-8", errors="ignore")
+
+    parts = urlparse(url).path.strip("/").split("/")
+
+    if len(parts) < 2:
+        raise ValueError(f"Unrecognized GitHub URL: {url}")
+
+    owner, repo = parts[0], parts[1]
+
+    tree_resp = _fetch(
+        f"https://api.github.com/repos/{owner}/{repo}/git/trees/HEAD?recursive=1",
+        headers=_github_headers(),
+    )
+
+    tree = tree_resp.json().get("tree", [])
+
+    text_files = [
+        item for item in tree
+        if item.get("type") == "blob"
+        and Path(item["path"]).suffix.lower() in GITHUB_TEXT_EXTENSIONS
+    ][:MAX_GITHUB_FILES]
+
+    combined = []
+
+    for item in text_files:
+        raw = f"https://raw.githubusercontent.com/{owner}/{repo}/HEAD/{item['path']}"
+        try:
+            file_resp = _fetch(raw, headers=_github_headers())
+            content = file_resp.content[:MAX_REMOTE_BYTES].decode("utf-8", errors="ignore")
+            combined.append(f"### {item['path']} ###\n{content}")
+        except Exception:
+            continue
+
+    if not combined:
+        raise ValueError(
+            f"No readable text/code files found in {owner}/{repo} "
+            f"(scanned {len(tree)} entries)."
+        )
+
+    return "\n\n".join(combined)
+
+
+def load_csv(path: str) -> str:
+    """
+    Converts CSV rows into readable 'field: value' sentences so the
+    similarity scorer can match on column values instead of raw commas.
+    """
+
+    lines = []
+
+    with open(path, newline="", encoding="utf-8", errors="ignore") as f:
+        reader = csv.DictReader(f)
+
+        for i, row in enumerate(reader):
+            sentence = " | ".join(f"{k}: {v}" for k, v in row.items() if k)
+            lines.append(f"Row {i + 1}: {sentence}")
+
+    return "\n".join(lines)
+
+
+def load_sqlite(path: str) -> str:
+    """
+    Dumps every table in a SQLite database file into readable
+    'table row: col=val' sentences (capped per table so large databases
+    don't blow up the retrieval context).
+    """
+
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+
+    lines = []
+
+    try:
+        tables = [
+            row[0] for row in conn.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            )
+        ]
+
+        for table in tables:
+            cursor = conn.execute(f"SELECT * FROM {table} LIMIT {MAX_DB_ROWS_PER_TABLE}")
+
+            for row in cursor:
+                sentence = " | ".join(f"{key}: {row[key]}" for key in row.keys())
+                lines.append(f"{table} row: {sentence}")
+
+    finally:
+        conn.close()
+
+    return "\n".join(lines)
 
 
 def build_retrieval_prompt(query: str, context: str) -> str:
@@ -69,6 +307,23 @@ Question:
 
 
 def load_text(path: str) -> str:
+    """
+    Loads and returns plain text from any supported source:
+    - Local files: .pdf, .txt, .md, .csv, .db/.sqlite/.sqlite3
+    - Any web URL (HTML pages, plain text, JSON, etc.)
+    - GitHub file ('blob') or repo root links
+
+    This is the single entry point gather_context() (and the standalone
+    CLI) calls — everything downstream (chunk_text, retrieve, ask_llm)
+    doesn't need to know or care what kind of source it came from.
+    """
+
+    if is_github_url(path):
+        return load_github(path)
+
+    if is_url(path):
+        return load_url(path)
+
     ext = Path(path).suffix.lower()
 
     if ext in [".txt", ".md"]:
@@ -82,7 +337,16 @@ def load_text(path: str) -> str:
             text.append(page_text)
         return "\n".join(text)
 
-    raise ValueError("Only PDF, TXT and MD are supported.")
+    if ext == ".csv":
+        return load_csv(path)
+
+    if ext in [".db", ".sqlite", ".sqlite3"]:
+        return load_sqlite(path)
+
+    raise ValueError(
+        "Unsupported source. Supported: PDF, TXT, MD, CSV, SQLite DB "
+        "files, web URLs, and GitHub file/repo links."
+    )
 
 
 def chunk_text(text, size=1000, overlap=200):
@@ -217,19 +481,25 @@ def gather_context(documents, query: str, k: int = 3):
     for doc_path in documents:
 
         try:
-            ext = Path(doc_path).suffix.lower()
+            if is_url(doc_path):
+                # URL or GitHub link — load_text() fetches it directly;
+                # no local extension/existence check applies.
+                text = load_text(doc_path)
 
-            if ext not in SUPPORTED_EXTENSIONS:
-                load_errors.append(
-                    f"{doc_path}: unsupported file type '{ext}'"
-                )
-                continue
+            else:
+                ext = Path(doc_path).suffix.lower()
 
-            if not os.path.exists(doc_path):
-                load_errors.append(f"{doc_path}: file not found")
-                continue
+                if ext not in SUPPORTED_EXTENSIONS:
+                    load_errors.append(
+                        f"{doc_path}: unsupported file type '{ext}'"
+                    )
+                    continue
 
-            text = load_text(doc_path)
+                if not os.path.exists(doc_path):
+                    load_errors.append(f"{doc_path}: file not found")
+                    continue
+
+                text = load_text(doc_path)
 
             chunks = chunk_text(text)
 
@@ -385,9 +655,11 @@ def main():
 
     query = input("\nQuery:\n> ")
 
-    path = input("\nPDF/TXT Path:\n> ")
+    path = input(
+        "\nSource (PDF/TXT/MD/CSV/SQLite path, web URL, or GitHub link):\n> "
+    )
 
-    if not os.path.exists(path):
+    if not is_url(path) and not os.path.exists(path):
         print("\nFile not found.")
         return
 
